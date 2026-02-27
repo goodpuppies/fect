@@ -32,6 +32,8 @@ Deno.test("match works with async infected carrier", async () => {
   const message = await match(out).with({
     ok: (value) => `ok:${value}`,
     err: {
+      PromiseRejected: () => "promise-rejected",
+      UnknownException: () => "unknown-exception",
       NotFound: (e) => `missing:${e.resource}`,
     },
   });

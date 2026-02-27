@@ -25,6 +25,11 @@ export type FxShape = Record<string, unknown>;
 /** Any error value that carries a discriminant `_tag`. */
 export type TaggedError = { _tag: string };
 
+/** Default defect tag used when async work rejects without custom mapping. */
+export type PromiseRejected = { _tag: "PromiseRejected"; cause: unknown };
+/** Default defect tag used when handler execution throws in infected flows. */
+export type UnknownException = { _tag: "UnknownException"; cause: unknown };
+
 /** Pull the error type out of an Fx record's `result` slot. */
 type ErrorOfFx<Fx extends FxShape> = Fx extends { result: infer E } ? E : never;
 
@@ -97,27 +102,29 @@ type FectA<T> = T extends Fect<infer A, infer _Fx extends FxShape> ? A
 
 type FectFx<T> = T extends Fect<any, infer Fx extends FxShape> ? Fx : {};
 
+type DefectFx<D> = D extends never ? {} : { result: D };
+
 /** Internal: compute the raw return type. */
-type FnReturn_<TIn, TOut> = Fect<
+type FnReturn_<TIn, TOut, D> = Fect<
   FectA<ToFectOut<TOut>>,
   MergeFx<
     FectFx<ToFect<TIn>>,
     IsPromise<TOut> extends true
-      ? MergeFx<FectFx<ToFectOut<TOut>>, { async: true }>
+      ? MergeFx<MergeFx<FectFx<ToFectOut<TOut>>, { async: true }>, DefectFx<D>>
       : FectFx<ToFectOut<TOut>>
   >
 >;
 
 /** Force TS to resolve the alias so hovers show `Fect<A, Fx>` not `FnReturn<…>`. */
-type FnReturn<TIn, TOut> = FnReturn_<TIn, TOut> extends
+type FnReturn<TIn, TOut, D = never> = FnReturn_<TIn, TOut, D> extends
   Fect<infer A, infer Fx extends FxShape> ? Fect<A, Fx> : never;
 
 type HasInfectedOut<T> = [Extract<T, PromiseLike<any> | Fail<any> | Fect<any, any>>] extends
   [never] ? false
   : true;
 
-type FnMaybeRawReturn<TIn, TOut> = HasInfectedOut<TOut> extends true
-  ? FnReturn<TIn, TOut>
+type FnMaybeRawReturn<TIn, TOut, D> = HasInfectedOut<TOut> extends true
+  ? FnReturn<TIn, TOut, D>
   : TOut;
 
 // ===== Runtime helpers =====
@@ -179,6 +186,20 @@ function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
 
 function mergeFxRuntime(a: FxShape, b: FxShape): FxShape {
   return { ...a, ...b };
+}
+
+type FnOptions<DRejected = PromiseRejected, DThrown = UnknownException> = {
+  mapDefect?: (cause: unknown) => DRejected | DThrown;
+  mapRejected?: (cause: unknown) => DRejected;
+  mapThrown?: (cause: unknown) => DThrown;
+};
+
+function defaultMapRejected(cause: unknown): PromiseRejected {
+  return { _tag: "PromiseRejected", cause };
+}
+
+function defaultMapThrown(cause: unknown): UnknownException {
+  return { _tag: "UnknownException", cause };
 }
 
 /**
@@ -304,30 +325,62 @@ export function FectError<const Tag extends string>(tag: Tag) {
  * - Merges effect metadata from input and output.
  * - `Fail` returns (via `SomeError.err(...)`) are converted to error carriers.
  */
-export function fn<H extends () => unknown>(
+export function fn<
+  H extends () => unknown,
+  DRejected = PromiseRejected,
+  DThrown = UnknownException,
+>(
   handler: H,
-): () => FnMaybeRawReturn<{}, ReturnType<H>>;
-export function fn<H extends (input: any) => unknown>(handler: H): {
-  (input: Parameters<H>[0]): FnMaybeRawReturn<Parameters<H>[0], ReturnType<H>>;
+  options?: FnOptions<DRejected, DThrown>,
+): () => FnMaybeRawReturn<{}, ReturnType<H>, DRejected | DThrown>;
+export function fn<
+  H extends (input: any) => unknown,
+  DRejected = PromiseRejected,
+  DThrown = UnknownException,
+>(
+  handler: H,
+  options?: FnOptions<DRejected, DThrown>,
+): {
+  (input: Parameters<H>[0]): FnMaybeRawReturn<
+    Parameters<H>[0],
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
   <FxIn extends FxShape>(
     input: Fect<Parameters<H>[0], FxIn>,
-  ): FnReturn<Fect<Parameters<H>[0], FxIn>, ReturnType<H>>;
+  ): FnReturn<
+    Fect<Parameters<H>[0], FxIn>,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
   (input: PromiseLike<Parameters<H>[0]>): FnReturn<
-    Fect<Parameters<H>[0], { async: true }>,
-    ReturnType<H>
+    Fect<Parameters<H>[0], { async: true; result: DRejected | DThrown }>,
+    ReturnType<H>,
+    DRejected | DThrown
   >;
 };
-export function fn(handler: ((input: unknown) => unknown) | (() => unknown)) {
+export function fn(
+  handler: ((input: unknown) => unknown) | (() => unknown),
+  options?: FnOptions,
+) {
+  const mapRejected = options?.mapRejected ?? options?.mapDefect ??
+    defaultMapRejected;
+  const mapThrown = options?.mapThrown ?? options?.mapDefect ??
+    defaultMapThrown;
+
   // ── Zero-arg handler ──
   if (handler.length === 0) {
     return () => {
       const outRaw = (handler as () => unknown)();
 
       if (isPromiseLike(outRaw)) {
-        const asyncPayload = Promise.resolve(outRaw).then(settleToPayload);
+        const asyncPayload = Promise.resolve(outRaw).then(
+          settleToPayload,
+          (cause) => ({ tag: "err" as const, error: mapRejected(cause) }),
+        );
         return makeCoreAsync(
           asyncPayload as Promise<Payload<unknown, unknown>>,
-          {},
+          { result: true },
         );
       }
 
@@ -343,10 +396,13 @@ export function fn(handler: ((input: unknown) => unknown) | (() => unknown)) {
       const outRaw = (handler as (i: unknown) => unknown)(input);
 
       if (isPromiseLike(outRaw)) {
-        const asyncPayload = Promise.resolve(outRaw).then(settleToPayload);
+        const asyncPayload = Promise.resolve(outRaw).then(
+          settleToPayload,
+          (cause) => ({ tag: "err" as const, error: mapRejected(cause) }),
+        );
         return makeCoreAsync(
           asyncPayload as Promise<Payload<unknown, unknown>>,
-          {},
+          { result: true },
         );
       }
 
@@ -358,8 +414,11 @@ export function fn(handler: ((input: unknown) => unknown) | (() => unknown)) {
     const inCore: Fect<unknown, FxShape> = isFect(input)
       ? input
       : makeCoreAsync(
-        Promise.resolve(input).then((v) => ({ tag: "ok" as const, value: v })),
-        {},
+        Promise.resolve(input).then(
+          (v) => ({ tag: "ok" as const, value: v }),
+          (cause) => ({ tag: "err" as const, error: mapRejected(cause) }),
+        ),
+        { result: true },
       );
 
     const inPayload = inCore.payload;
@@ -370,9 +429,17 @@ export function fn(handler: ((input: unknown) => unknown) | (() => unknown)) {
         inPayload as unknown as Promise<Payload<unknown, unknown>>
       ).then((resolved) => {
         if (resolved.tag === "err") return resolved; // short-circuit
-        const outRaw = (handler as (i: unknown) => unknown)(resolved.value);
+        let outRaw: unknown;
+        try {
+          outRaw = (handler as (i: unknown) => unknown)(resolved.value);
+        } catch (cause) {
+          return { tag: "err" as const, error: mapThrown(cause) };
+        }
         if (isPromiseLike(outRaw)) {
-          return Promise.resolve(outRaw).then(settleToPayload);
+          return Promise.resolve(outRaw).then(
+            settleToPayload,
+            (cause) => ({ tag: "err" as const, error: mapRejected(cause) }),
+          );
         }
         return settleToPayload(outRaw);
       });
@@ -386,14 +453,26 @@ export function fn(handler: ((input: unknown) => unknown) | (() => unknown)) {
     // ── Sync input ──
     if (inPayload.tag === "err") return inCore; // short-circuit
 
-    const outRaw = (handler as (i: unknown) => unknown)(inPayload.value);
+    let outRaw: unknown;
+    try {
+      outRaw = (handler as (i: unknown) => unknown)(inPayload.value);
+    } catch (cause) {
+      // deno-lint-ignore no-explicit-any
+      return makeCore(
+        { tag: "err", error: mapThrown(cause) } as any,
+        mergeFxRuntime(inCore.fx, { result: true }),
+      );
+    }
 
     // Async output from sync input
     if (isPromiseLike(outRaw)) {
-      const asyncPayload = Promise.resolve(outRaw).then(settleToPayload);
+      const asyncPayload = Promise.resolve(outRaw).then(
+        settleToPayload,
+        (cause) => ({ tag: "err" as const, error: mapRejected(cause) }),
+      );
       return makeCoreAsync(
         asyncPayload as Promise<Payload<unknown, unknown>>,
-        inCore.fx,
+        mergeFxRuntime(inCore.fx, { result: true }),
       );
     }
 

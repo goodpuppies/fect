@@ -72,6 +72,10 @@ Deno.test("fn propagates promise input as async carrier", async () => {
 
   const msg = await match(result).with({
     ok: (v) => v,
+    err: {
+      PromiseRejected: () => false,
+      UnknownException: () => false,
+    },
   });
   assertEquals(msg, true);
 });
@@ -84,6 +88,10 @@ Deno.test("fn flattens async body return", async () => {
   const result = check({ n: 41 });
   const value = await match(result).with({
     ok: (v) => v,
+    err: {
+      PromiseRejected: () => -1,
+      UnknownException: () => -1,
+    },
   });
   assertEquals(value, 42);
 });
@@ -95,6 +103,10 @@ Deno.test("fn chains async input with async handler", async () => {
   const result = step2(step1(Promise.resolve(5)));
   const value = await match(result).with({
     ok: (v) => v,
+    err: {
+      PromiseRejected: () => -1,
+      UnknownException: () => -1,
+    },
   });
   assertEquals(value, 20);
 });
@@ -109,10 +121,86 @@ Deno.test("fn short-circuits async error through pipeline", async () => {
   const value = await match(result).with({
     ok: (v) => `ok:${v}`,
     err: {
+      PromiseRejected: () => "promise-rejected",
+      UnknownException: () => "unknown-exception",
       Boom: () => "boom",
     },
   });
   assertEquals(value, "boom");
+});
+
+Deno.test("fn maps async rejection to PromiseRejected by default", async () => {
+  const step = fn(async (_n: number) => {
+    throw new Error("boom");
+  });
+
+  const out = step(1);
+  const value = await match(out).with({
+    ok: () => "ok",
+    err: {
+      PromiseRejected: (e) =>
+        e.cause instanceof Error ? e.cause.message : "unknown",
+      UnknownException: () => "unknown",
+    },
+  });
+  assertEquals(value, "boom");
+});
+
+Deno.test("fn supports custom mapDefect for async rejection", async () => {
+  class UnknownException
+    extends FectError("UnknownException")<{ cause: unknown }>() {}
+
+  const step = fn(
+    async (_n: number) => {
+      throw "boom";
+    },
+    {
+      mapDefect: (cause) => UnknownException.of({ cause }),
+    },
+  );
+
+  const out = step(1);
+  const value = await match(out).with({
+    ok: () => "ok",
+    err: {
+      UnknownException: (e) => String(e.cause),
+    },
+  });
+  assertEquals(value, "boom");
+});
+
+Deno.test("fn maps rejected promise input to defect channel", async () => {
+  const step = fn((n: number) => n + 1);
+
+  const out = step(Promise.reject(new Error("input failed")));
+  const value = await match(out).with({
+    ok: () => "ok",
+    err: {
+      PromiseRejected: (e) =>
+        e.cause instanceof Error ? e.cause.message : "unknown",
+      UnknownException: () => "unknown",
+    },
+  });
+
+  assertEquals(value, "input failed");
+});
+
+Deno.test("fn maps thrown exception in infected flow to UnknownException", async () => {
+  const step = fn((_: number) => {
+    throw new Error("thrown");
+  });
+
+  const out = step(Promise.resolve(1));
+  const value = await match(out).with({
+    ok: () => "ok",
+    err: {
+      PromiseRejected: () => "promise-rejected",
+      UnknownException: (e) =>
+        e.cause instanceof Error ? e.cause.message : "unknown",
+    },
+  });
+
+  assertEquals(value, "thrown");
 });
 
 // ===== FectError =====

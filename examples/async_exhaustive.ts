@@ -5,8 +5,6 @@ import { Fect } from "../mod.ts";
 class InputEmpty extends Fect.error("InputEmpty")() {}
 class HttpError
   extends Fect.error("HttpError")<{ status: number; where: string }>() {}
-class UnknownException
-  extends Fect.error("UnknownException")<{ cause: unknown }>() {}
 
 // ── Domain types ────────────────────────────────────────────────────
 
@@ -30,44 +28,36 @@ const parseInput = Fect.fn((raw: string) => {
 });
 
 const fetchUser = Fect.fn(async (username: string) => {
-  try {
-    const response = await fetch(
-      `https://api.github.com/users/${encodeURIComponent(username)}`,
-      {
-        headers: {
-          Accept: "application/vnd.github+json",
-          "User-Agent": "logicalassert-infection-example4",
-        },
-      },
-    );
-
-    if (!response.ok) {
-      return HttpError.err({ status: response.status, where: "fetchUser" });
-    }
-
-    return (await response.json()) as GitHubUser;
-  } catch (cause) {
-    return UnknownException.err({ cause });
-  }
-});
-
-const fetchRepos = Fect.fn(async (user: GitHubUser) => {
-  try {
-    const response = await fetch(user.repos_url, {
+  const response = await fetch(
+    `https://api.github.com/users/${encodeURIComponent(username)}`,
+    {
       headers: {
         Accept: "application/vnd.github+json",
         "User-Agent": "logicalassert-infection-example4",
       },
-    });
+    },
+  );
 
-    if (!response.ok) {
-      return HttpError.err({ status: response.status, where: "fetchRepos" });
-    }
-
-    return (await response.json()) as GitHubRepo[];
-  } catch (cause) {
-    return UnknownException.err({ cause });
+  if (!response.ok) {
+    return HttpError.err({ status: response.status, where: "fetchUser" });
   }
+
+  return (await response.json()) as GitHubUser;
+});
+
+const fetchRepos = Fect.fn(async (user: GitHubUser) => {
+  const response = await fetch(user.repos_url, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      "User-Agent": "logicalassert-infection-example4",
+    },
+  });
+
+  if (!response.ok) {
+    return HttpError.err({ status: response.status, where: "fetchRepos" });
+  }
+
+  return (await response.json()) as GitHubRepo[];
 });
 
 const summarize = Fect.fn((repos: GitHubRepo[]) => {
@@ -76,6 +66,8 @@ const summarize = Fect.fn((repos: GitHubRepo[]) => {
     .sort((a, b) => b.stargazers_count - a.stargazers_count)
     .slice(0, 3)
     .map((repo) => `${repo.name} (${repo.stargazers_count}★)`);
+  
+  throw new Error("catch me")
 
   return { count: repos.length, top };
 });
@@ -94,14 +86,15 @@ export async function runInfectionExample4(rawInput: string): Promise<void> {
     ok: (value) =>
       `Repos: ${value.count} | Top: ${value.top.join(", ") || "none"}`,
     err: {
-      InputEmpty: () => "Error: input username is empty",
-      HttpError: (e) => `Error: HTTP ${e.status} at ${e.where}`,
+      PromiseRejected: () => "Error: promise rejected",
       UnknownException: (e) => {
         if (e.cause instanceof Error) {
           return `Error: unknown exception ${e.cause.message}`;
         }
         return "Error: unknown exception";
       },
+      InputEmpty: () => "Error: input username is empty",
+      HttpError: (e) => `Error: HTTP ${e.status} at ${e.where}`,
     },
   });
 
