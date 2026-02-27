@@ -291,7 +291,9 @@ export type FectErrorClass<Tag extends string, Fields extends object> = {
  *
  * Then use `ParseError.err({ input })` inside `fn` handlers.
  */
-export function FectError<const Tag extends string>(tag: Tag) {
+export function FectError<const Tag extends string>(
+  tag: Tag,
+): <Fields extends object = {}>() => FectErrorClass<Tag, Fields> {
   return <Fields extends object = {}>(): FectErrorClass<Tag, Fields> => {
     class TaggedBase {
       static readonly _tag = tag;
