@@ -1,4 +1,5 @@
-import { Fect, List, Option } from "../mod.ts";
+import { Fect, fn, List, match, Option, strEq } from "../mod.ts";
+import { charToDigit, mul, type wstr } from "./pseudostd.ts";
 
 class NotMul extends Fect.error("NotMul")() {}
 class ExpectedDigit extends Fect.error("ExpectedDigit")() {}
@@ -7,119 +8,105 @@ class ExpectedCloseParen extends Fect.error("ExpectedCloseParen")() {}
 
 type ParseStep = { value: number; next: number };
 
-const makeStep = Fect.fn((value: number, next: number): ParseStep => (
+const makeStep = fn((value: number, next: number): ParseStep => (
   { value, next }
 ));
 
-const mul = Fect.fn((a: number, b: number) => a * b);
+const charComma = ",";
+const charCloseParen = ")";
+const mulLiteral = [..."mul("];
+const mulLiteralLength = List.length(mulLiteral);
 
-const mulLiteral = "mul(";
-
-const toDigit = Fect.fn((c: string) => {
-  if (c >= "0" && c <= "9") return c.charCodeAt(0) - "0".charCodeAt(0);
-  return ExpectedDigit.err();
-});
-
-const readRequiredDigit = Fect.fn((chars: readonly string[], i: number) => {
-  const c = List.at(chars, i);
-  const d = toDigit(c);
-  return makeStep(d, i + 1);
-});
-
-const extendDigits = Fect.fn(function extendDigits(
-  chars: readonly string[],
-  step: ParseStep,
-  count: number,
-): ParseStep {
-  if (count === 3) return step;
-
-  const nextDigit = toDigit(List.at(chars, step.next));
-  const optionalDigit = Fect.match(nextDigit).with({
-    ok: (digit) => Option.Some(digit),
-    err: {
-      ExpectedDigit: () => Option.None,
-      ListIndexOutOfBounds: () => Option.None,
+const readRequiredDigit = fn((chars: wstr, i: number) => {
+  return match(List.at(chars, i)).with({
+    ok: (c) => {
+      return match(charToDigit(c)).with({
+        Some: (digit) => makeStep(Fect.ok(digit.value), i + 1),
+        None: () => makeStep(Fect.err(ExpectedDigit.of()), i + 1),
+      });
     },
-  });
-
-  return Option.match(optionalDigit, {
-    Some: (digit) => {
-      const combined = makeStep(step.value * 10 + digit, step.next + 1);
-      return extendDigits(chars, combined, count + 1);
-    },
-    None: () => step,
+    err: (err) => makeStep(Fect.err(err), i + 1),
   });
 });
 
-const expectCharAt = Fect.fn((
-  chars: readonly string[],
-  i: number,
-  expected: string,
-  error: unknown,
-) => {
-  return Fect.match(List.at(chars, i)).with({
-    ok: (value) => {
-      if (value === expected) {
-        return Fect.ok(i + 1);
-      } else {
-        return Fect.err(error);
-      }
-    },
-    err: {
-      ListIndexOutOfBounds: () => Fect.err(error),
-    },
-  });
+const extendDigits = fn(
+  (chars: wstr, step: ParseStep, count: number): ParseStep => {
+    if (count === 3) {
+      return step;
+    } else {
+      return match(List.at(chars, step.next)).with({
+        err: (_) => step,
+        ok: (code) => {
+          return match(charToDigit(code)).with({
+            None: () => step,
+            Some: (digit) => {
+              const combined = makeStep(
+                step.value * 10 + digit.value,
+                step.next + 1,
+              );
+              return extendDigits(chars, combined, count + 1);
+            },
+          });
+        },
+      });
+    }
+  },
+);
+
+const expectCharAt = fn(
+  (chars: wstr, i: number, expected: string, error: unknown) => {
+    return match(List.at(chars, i)).with({
+      ok: (code) => {
+        if (code === expected) {
+          return Fect.ok(i + 1);
+        } else {
+          return Fect.err(error);
+        }
+      },
+      err: () => Fect.err(error),
+    });
+  },
+);
+
+const expectMulLiteral = fn((chars: wstr, i: number) => {
+  if (strEq(List.slice(chars, i, i + mulLiteralLength), mulLiteral)) {
+    return i + mulLiteralLength;
+  } else {
+    return NotMul.err();
+  }
 });
 
-const expectMulLiteral = Fect.fn((chars: readonly string[], i: number) => {
-  const chunk = List.slice(chars, i, i + mulLiteral.length).join("");
-  if (chunk === mulLiteral) return i + mulLiteral.length;
-  return NotMul.err();
-});
-
-const parseMulAt = Fect.fn((chars: readonly string[], i: number) => {
+const parseMulAt = fn((chars: wstr, i: number) => {
   const afterMul = expectMulLiteral(chars, i);
   const leftStep = extendDigits(chars, readRequiredDigit(chars, afterMul), 1);
-  const afterComma = expectCharAt(
-    chars,
-    Fect.get(leftStep, "next"),
-    ",",
-    ExpectedComma.of(),
-  );
-  const rightStep = extendDigits(chars,readRequiredDigit(chars, afterComma), 1);
-  const afterClose = expectCharAt(
-    chars,
-    Fect.get(rightStep, "next"),
-    ")",
-    ExpectedCloseParen.of(),
-  );
+  const afterComma = expectCharAt(chars, Fect.get(leftStep, "next"), ",", ExpectedComma.of());
+  const rightStep = extendDigits(chars, readRequiredDigit(chars, afterComma), 1);
+  const afterClose = expectCharAt(chars, Fect.get(rightStep, "next"), ")", ExpectedCloseParen.of());
   return makeStep(
     mul(Fect.get(leftStep, "value"), Fect.get(rightStep, "value")),
     afterClose,
   );
 });
 
-function scan(chars: readonly string[], i: number, acc: number): number {
-  return Fect.match(List.at(chars, i)).with({
-    ok: () => {
-      const parsed = parseMulAt(chars, i) as { payload: unknown };
-      const payload = parsed.payload as
-        | { tag: "ok"; value: ParseStep }
-        | { tag: "err"; error: { _tag: string } };
+const scan = fn(
+  (chars: wstr, i: number, acc: number): number => {
+    return match(List.at(chars, i)).with({
+      err: () => acc,
+      ok: () => {
+        return match(parseMulAt(chars, i)).with({
+          ok: (step) => { return scan(chars, step.next, acc + step.value) },
+          err: (err) => {
+            console.log(err)
+            console.log(`skipping at ${i}`)
+            return scan(chars, i+1, acc)
+          }
+        })
+      },
+    });
+  },
+);
 
-      if (payload.tag === "ok") {
-        return scan(chars, payload.value.next, acc + payload.value.value);
-      }
-      return scan(chars, i + 1, acc);
-    },
-    err: {
-      ListIndexOutOfBounds: () => acc,
-    },
-  });
-}
-
-const corruptedMemory =
-  "xmul(2,4)%&mul[3,7]!@^do_not_mul(5,5)+mul(32,64]then(mul(11,8)mul(8,5))";
+const corruptedMemory = "xmul(2,4)%&mul[3,7]!@^do_not_mul(5,5)+mul(32,64]then(mul(11,8)mul(8,5))";
 
 const main = () => {
   const chars = [...corruptedMemory];
