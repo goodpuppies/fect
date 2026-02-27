@@ -1,5 +1,6 @@
 import { assertEquals, assertThrows } from "jsr:@std/assert";
-import { match } from "../mod.ts";
+import { match, None, Some } from "../mod.ts";
+import type { Option } from "../mod.ts";
 
 Deno.test("match(value) handles literal string key", () => {
   const result = match("hello").with({
@@ -74,4 +75,20 @@ Deno.test("match(value) supports union-like literal branching", () => {
 
   assertEquals(getRoleMessage("admin"), "Welcome, Administrator!");
   assertEquals(getRoleMessage("user"), "Hello, User!");
+});
+
+Deno.test("match(value) supports tagged ADTs like Option", () => {
+  const getSomeOption = (): Option<number> => Some(42);
+  const getNoneOption = (): Option<number> => None;
+  const someOut = match(getSomeOption()).with({
+    Some: (v: number) => v + 1,
+    None: () => 0,
+  });
+  const noneOut = match(getNoneOption()).with({
+    Some: (v: number) => v + 1,
+    None: () => 0,
+  });
+
+  assertEquals(someOut, 43);
+  assertEquals(noneOut, 0);
 });

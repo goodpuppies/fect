@@ -3,26 +3,30 @@ export * from "./lib/match.ts";
 export * from "./lib/remotevalue.ts";
 export * from "./lib/adts.ts";
 export * from "./lib/list.ts";
+export * from "./lib/string.ts";
 
 import {
+  defer,
   err,
   fail,
   type Fect as FectValue,
   FectError,
-  type FxShape,
   fn,
+  type FxShape,
   get,
-  props,
-  raise,
+  if_,
   isErr,
   isFect,
   isOk,
   ok,
+  props,
+  raise,
 } from "./lib/fect.ts";
 import { match } from "./lib/match.ts";
 import { isRemoteValue, RemoteValue, remoteValue } from "./lib/remotevalue.ts";
 import * as Option from "./lib/adts.ts";
 import * as List from "./lib/list.ts";
+import { strEq } from "./lib/string.ts";
 
 function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
   return (
@@ -67,8 +71,11 @@ export const Fect = {
   error: FectError,
   taggedError: FectError,
   FectError,
+  defer,
   raise,
   get,
+  if: if_,
+  ifElse: if_,
   props,
   match,
   try: tryFect,
@@ -80,4 +87,5 @@ export const Fect = {
   isRemoteValue,
   Option,
   List,
+  strEq,
 } as const;

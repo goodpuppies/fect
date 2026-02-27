@@ -11,10 +11,12 @@ type MatchHandlers<A, E, TOk, TErr> = [E] extends [never]
   ? { ok: (value: A) => TOk }
   : [E] extends [TaggedError] ? {
       ok: (value: A) => TOk;
-      err: Exact<
-        ErrorHandlers<E & TaggedError, TErr>,
-        ErrorHandlers<E & TaggedError, TErr>
-      >;
+      err:
+        | Exact<
+          ErrorHandlers<E & TaggedError, TErr>,
+          ErrorHandlers<E & TaggedError, TErr>
+        >
+        | ((error: E) => TErr);
     }
   : {
     ok: (value: A) => TOk;
@@ -31,6 +33,12 @@ type UnionOfHandlerReturns<THandlers> = {
   [K in keyof THandlers]: THandlers[K] extends (...args: any[]) => infer R ? R
     : never;
 }[keyof THandlers];
+
+type TaggedValue = { _tag: string };
+type TaggedBoundValue<T> = T extends { value: infer V } ? V : T;
+type TaggedValueHandlers<T extends TaggedValue, R> = {
+  [K in T["_tag"] & string]: (value: TaggedBoundValue<Extract<T, { _tag: K }>>) => R;
+};
 
 function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
   return (
@@ -79,6 +87,24 @@ function dispatchPlainValue<T, THandlers extends PlainMatchHandlers<T>>(
   value: T,
   handlers: THandlers,
 ): UnionOfHandlerReturns<THandlers> {
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "_tag" in (value as Record<PropertyKey, unknown>) &&
+    typeof (value as { _tag?: unknown })._tag === "string"
+  ) {
+    const tag = (value as unknown as { _tag: string })._tag;
+    const taggedHandler = handlers[tag];
+    if (typeof taggedHandler === "function") {
+      const bound = "value" in (value as Record<PropertyKey, unknown>)
+        ? (value as unknown as { value: unknown }).value
+        : value;
+      return (taggedHandler as (input: unknown) => unknown)(
+        bound,
+      ) as UnionOfHandlerReturns<THandlers>;
+    }
+  }
+
   const literalKey = literalKeyOfValue(value);
   if (literalKey !== null) {
     const literalHandler = handlers[literalKey];
@@ -116,6 +142,9 @@ export function match<A, Fx extends FxShape>(
   ): TOk | TErr;
 };
 export function match<T>(input: T): {
+  with<R>(
+    handlers: Exact<TaggedValueHandlers<T & TaggedValue, R>, TaggedValueHandlers<T & TaggedValue, R>>,
+  ): R;
   with<THandlers extends PlainMatchHandlers<T>>(
     handlers: THandlers,
   ): UnionOfHandlerReturns<THandlers>;
