@@ -1,4 +1,4 @@
-import { Fect, fn, List, match, type ListIndexOutOfBounds } from "../mod.ts";
+import { Fect, fn, List, type ListIndexOutOfBounds, match } from "../mod.ts";
 import { charToDigit, mul, strEq, type wstr } from "./pseudostd.ts";
 
 class NotMul extends Fect.error("NotMul")() {}
@@ -84,8 +84,7 @@ const expectMulLiteral = fn(
 const parseMulAt = fn(
   (chars: wstr, i: number) => {
     const afterMul = expectMulLiteral(chars, i);
-    const digit = readRequiredDigit(chars, afterMul); //propagates
-    const leftStep = extendDigits(chars, digit, 1);
+    const leftStep = extendDigits(chars, readRequiredDigit(chars, afterMul), 1);
     const afterComma = expectCharAt(charComma, ExpectedComma.of())(chars, Fect.get(leftStep, "next"));
     const rightStep = extendDigits(chars, readRequiredDigit(chars, afterComma), 1);
     const afterClose = expectCharAt(charCloseParen, ExpectedCloseParen.of())(chars, Fect.get(rightStep, "next"));
@@ -106,7 +105,7 @@ const scan = fn(
             return scan(chars, step.next, acc + step.value);
           },
           err: (err) => {
-            err satisfies NotMul | ExpectedComma | ExpectedCloseParen | ListIndexOutOfBounds
+            err satisfies NotMul | ExpectedComma | ExpectedCloseParen | ListIndexOutOfBounds;
             console.log(err);
             console.log(`skipping at ${i}`);
             return scan(chars, i + 1, acc);

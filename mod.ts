@@ -5,7 +5,6 @@ export * from "./lib/adts.ts";
 export * from "./lib/list.ts";
 
 import {
-  defer,
   err,
   fail,
   type Fect as FectValue,
@@ -13,7 +12,6 @@ import {
   fn,
   type FxShape,
   get,
-  if_,
   isErr,
   isFect,
   isOk,
@@ -69,11 +67,8 @@ export const Fect = {
   error: FectError,
   taggedError: FectError,
   FectError,
-  defer,
   raise,
   get,
-  if: if_,
-  ifElse: if_,
   props,
   match,
   try: tryFect,
