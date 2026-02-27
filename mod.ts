@@ -1,0 +1,71 @@
+export * from "./lib/fect.ts";
+export * from "./lib/match.ts";
+export * from "./lib/remotevalue.ts";
+
+import {
+  err,
+  fail,
+  type Fect as FectValue,
+  FectError,
+  type FxShape,
+  fn,
+  isErr,
+  isFect,
+  isOk,
+  ok,
+} from "./lib/fect.ts";
+import { match } from "./lib/match.ts";
+import { isRemoteValue, RemoteValue, remoteValue } from "./lib/remotevalue.ts";
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { then?: unknown }).then === "function"
+  );
+}
+
+function tryFect<A, Fx extends { async: true } & FxShape>(
+  input: FectValue<A, Fx>,
+): Promise<A>;
+function tryFect<A, Fx extends FxShape>(input: FectValue<A, Fx>): A;
+function tryFect<A, Fx extends FxShape>(
+  input: FectValue<A, Fx>,
+): A | Promise<A> {
+  const payload = input.payload as
+    | { tag: "ok"; value: A }
+    | { tag: "err"; error: unknown }
+    | Promise<{ tag: "ok"; value: A } | { tag: "err"; error: unknown }>;
+
+  if (isPromiseLike(payload)) {
+    return Promise.resolve(payload).then((resolved) => {
+      if (resolved.tag === "err") throw resolved.error;
+      return resolved.value;
+    });
+  }
+
+  if (payload.tag === "err") throw payload.error;
+  return payload.value;
+}
+
+/**
+ * Effect-style facade over the same primitives, for users who prefer
+ * namespaced APIs like `Fect.fn(...)` and `Fect.ok(...)`.
+ */
+export const Fect = {
+  fn,
+  ok,
+  err,
+  fail,
+  error: FectError,
+  taggedError: FectError,
+  FectError,
+  match,
+  try: tryFect,
+  isOk,
+  isErr,
+  isFect,
+  RemoteValue,
+  remoteValue,
+  isRemoteValue,
+} as const;
