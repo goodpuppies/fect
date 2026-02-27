@@ -1,9 +1,6 @@
 import { Fect, fn, List, match, Option, strEq } from "../mod.ts";
 import { charToDigit, mul, type wstr } from "./pseudostd.ts";
-import {
-
-  type Fect as FectValue,
-} from "../lib/fect.ts";
+import { type Fect as FectValue } from "../lib/fect.ts";
 
 class NotMul extends Fect.error("NotMul")() {}
 class ExpectedDigit extends Fect.error("ExpectedDigit")() {}
@@ -61,8 +58,8 @@ const extendDigits = fn(
   },
 );
 
-const expectCharAt = fn(
-  (chars: wstr, i: number, expected: string, error: unknown) => {
+const expectCharAt = <E>(expected: string, error: E) =>
+  fn((chars: wstr, i: number) => {
     return match(List.at(chars, i)).with({
       ok: (code) => {
         if (code === expected) {
@@ -73,8 +70,7 @@ const expectCharAt = fn(
       },
       err: () => Fect.err(error),
     });
-  },
-);
+  });
 
 const expectMulLiteral = fn(
   (chars: wstr, i: number) => {
@@ -88,12 +84,12 @@ const expectMulLiteral = fn(
 
 const parseMulAt = fn(
   (chars: wstr, i: number) => {
-    const afterMul: FectValue<number, { result: NotMul; }> = expectMulLiteral(chars, i);
-    const digit = readRequiredDigit(chars, afterMul) //propagates
+    const afterMul: FectValue<number, { result: NotMul }> = expectMulLiteral(chars, i);
+    const digit = readRequiredDigit(chars, afterMul); //propagates
     const leftStep = extendDigits(chars, digit, 1);
-    const afterComma  = expectCharAt(chars, Fect.get(leftStep, "next"), ",", ExpectedComma.of());
+    const afterComma = expectCharAt(",", ExpectedComma.of())(chars, Fect.get(leftStep, "next"));
     const rightStep = extendDigits(chars, readRequiredDigit(chars, afterComma), 1);
-    const afterClose = expectCharAt(chars, Fect.get(rightStep, "next"), ")", ExpectedCloseParen.of());
+    const afterClose = expectCharAt(")", ExpectedCloseParen.of())(chars, Fect.get(rightStep, "next"));
     return makeStep(
       mul(Fect.get(leftStep, "value"), Fect.get(rightStep, "value")),
       afterClose,

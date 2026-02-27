@@ -138,6 +138,10 @@ type MergeInputFx3<A, B, C, D> = MergeFx<
   MergeFx<InputArgToFx<A, D>, InputArgToFx<B, D>>,
   InputArgToFx<C, D>
 >;
+type MergeInputFx4<A, B, C, DArg, D> = MergeFx<
+  MergeInputFx3<A, B, C, D>,
+  InputArgToFx<DArg, D>
+>;
 
 // ===== Runtime helpers =====
 
@@ -617,6 +621,52 @@ export function fn<
     c: CIn,
   ): FnReturn<
     Fect<unknown, MergeInputFx3<AIn, BIn, CIn, DRejected | DThrown>>,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+};
+export function fn<
+  H extends (a: any, b: any, c: any, d: any) => unknown,
+  DRejected = PromiseRejected,
+  DThrown = UnknownException,
+>(
+  handler: H,
+  options?: FnOptions<DRejected, DThrown>,
+): {
+  (
+    a: Parameters<H>[0],
+    b: Parameters<H>[1],
+    c: Parameters<H>[2],
+    d: Parameters<H>[3],
+  ): FnMaybeRawReturn<
+    Parameters<H>,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+  <
+    AIn extends
+      | Parameters<H>[0]
+      | Fect<Parameters<H>[0], FxShape>
+      | PromiseLike<Parameters<H>[0]>,
+    BIn extends
+      | Parameters<H>[1]
+      | Fect<Parameters<H>[1], FxShape>
+      | PromiseLike<Parameters<H>[1]>,
+    CIn extends
+      | Parameters<H>[2]
+      | Fect<Parameters<H>[2], FxShape>
+      | PromiseLike<Parameters<H>[2]>,
+    DIn extends
+      | Parameters<H>[3]
+      | Fect<Parameters<H>[3], FxShape>
+      | PromiseLike<Parameters<H>[3]>,
+  >(
+    a: AIn,
+    b: BIn,
+    c: CIn,
+    d: DIn,
+  ): FnReturn<
+    Fect<unknown, MergeInputFx4<AIn, BIn, CIn, DIn, DRejected | DThrown>>,
     ReturnType<H>,
     DRejected | DThrown
   >;
