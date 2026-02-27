@@ -41,7 +41,7 @@ const extendDigits = fn(
             None: () => step,
             Some: (digit) => {
               const combined = makeStep(
-                step.value * 10 + digit.value,
+                step.value * 10 + digit,
                 step.next + 1,
               );
               return extendDigits(chars, combined, count + 1);
