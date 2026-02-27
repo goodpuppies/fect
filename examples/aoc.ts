@@ -1,5 +1,9 @@
 import { Fect, fn, List, match, Option, strEq } from "../mod.ts";
 import { charToDigit, mul, type wstr } from "./pseudostd.ts";
+import {
+
+  type Fect as FectValue,
+} from "../lib/fect.ts";
 
 class NotMul extends Fect.error("NotMul")() {}
 class ExpectedDigit extends Fect.error("ExpectedDigit")() {}
@@ -8,26 +12,30 @@ class ExpectedCloseParen extends Fect.error("ExpectedCloseParen")() {}
 
 type ParseStep = { value: number; next: number };
 
-const makeStep = fn((value: number, next: number): ParseStep => (
-  { value, next }
-));
+const makeStep = fn(
+  (value: number, next: number): ParseStep => (
+    { value, next }
+  ),
+);
 
 const charComma = ",";
 const charCloseParen = ")";
 const mulLiteral = [..."mul("];
 const mulLiteralLength = List.length(mulLiteral);
 
-const readRequiredDigit = fn((chars: wstr, i: number) => {
-  return match(List.at(chars, i)).with({
-    ok: (c) => {
-      return match(charToDigit(c)).with({
-        Some: (digit) => makeStep(Fect.ok(digit.value), i + 1),
-        None: () => makeStep(Fect.err(ExpectedDigit.of()), i + 1),
-      });
-    },
-    err: (err) => makeStep(Fect.err(err), i + 1),
-  });
-});
+const readRequiredDigit = fn(
+  (chars: wstr, i: number) => {
+    return match(List.at(chars, i)).with({
+      ok: (c) => {
+        return match(charToDigit(c)).with({
+          Some: (digit) => makeStep(Fect.ok(digit), i + 1),
+          None: () => makeStep(Fect.err(ExpectedDigit.of()), i + 1),
+        });
+      },
+      err: (err) => makeStep(Fect.err(err), i + 1),
+    });
+  },
+);
 
 const extendDigits = fn(
   (chars: wstr, step: ParseStep, count: number): ParseStep => {
@@ -68,25 +76,30 @@ const expectCharAt = fn(
   },
 );
 
-const expectMulLiteral = fn((chars: wstr, i: number) => {
-  if (strEq(List.slice(chars, i, i + mulLiteralLength), mulLiteral)) {
-    return i + mulLiteralLength;
-  } else {
-    return NotMul.err();
-  }
-});
+const expectMulLiteral = fn(
+  (chars: wstr, i: number) => {
+    if (strEq(List.slice(chars, i, i + mulLiteralLength), mulLiteral)) {
+      return i + mulLiteralLength;
+    } else {
+      return NotMul.err();
+    }
+  },
+);
 
-const parseMulAt = fn((chars: wstr, i: number) => {
-  const afterMul = expectMulLiteral(chars, i);
-  const leftStep = extendDigits(chars, readRequiredDigit(chars, afterMul), 1);
-  const afterComma = expectCharAt(chars, Fect.get(leftStep, "next"), ",", ExpectedComma.of());
-  const rightStep = extendDigits(chars, readRequiredDigit(chars, afterComma), 1);
-  const afterClose = expectCharAt(chars, Fect.get(rightStep, "next"), ")", ExpectedCloseParen.of());
-  return makeStep(
-    mul(Fect.get(leftStep, "value"), Fect.get(rightStep, "value")),
-    afterClose,
-  );
-});
+const parseMulAt = fn(
+  (chars: wstr, i: number) => {
+    const afterMul: FectValue<number, { result: NotMul; }> = expectMulLiteral(chars, i);
+    const digit = readRequiredDigit(chars, afterMul) //propagates
+    const leftStep = extendDigits(chars, digit, 1);
+    const afterComma  = expectCharAt(chars, Fect.get(leftStep, "next"), ",", ExpectedComma.of());
+    const rightStep = extendDigits(chars, readRequiredDigit(chars, afterComma), 1);
+    const afterClose = expectCharAt(chars, Fect.get(rightStep, "next"), ")", ExpectedCloseParen.of());
+    return makeStep(
+      mul(Fect.get(leftStep, "value"), Fect.get(rightStep, "value")),
+      afterClose,
+    );
+  },
+);
 
 const scan = fn(
   (chars: wstr, i: number, acc: number): number => {
@@ -94,13 +107,15 @@ const scan = fn(
       err: () => acc,
       ok: () => {
         return match(parseMulAt(chars, i)).with({
-          ok: (step) => { return scan(chars, step.next, acc + step.value) },
+          ok: (step) => {
+            return scan(chars, step.next, acc + step.value);
+          },
           err: (err) => {
-            console.log(err)
-            console.log(`skipping at ${i}`)
-            return scan(chars, i+1, acc)
-          }
-        })
+            console.log(err);
+            console.log(`skipping at ${i}`);
+            return scan(chars, i + 1, acc);
+          },
+        });
       },
     });
   },
