@@ -29,6 +29,22 @@ Deno.test("fn supports zero-arg handlers", () => {
   assertEquals(result, 42);
 });
 
+Deno.test("fn supports multiple plain args and returns raw", () => {
+  const add = fn((a: number, b: number) => a + b);
+  const out = add(1, 2);
+  assertEquals(out, 3);
+});
+
+Deno.test("fn supports multiple infected args", () => {
+  const add = fn((a: number, b: number) => a + b);
+  const out = add(ok(1), ok(2));
+
+  const value = match(out).with({
+    ok: (v) => v,
+  });
+  assertEquals(value, 3);
+});
+
 Deno.test("fn short-circuits on error carrier input", () => {
   let executed = false;
   const step = fn((n: number) => {

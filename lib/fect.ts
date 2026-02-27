@@ -334,7 +334,7 @@ export function fn<
 >(
   handler: H,
   options?: FnOptions<DRejected, DThrown>,
-): () => FnMaybeRawReturn<{}, ReturnType<H>, DRejected | DThrown>;
+): () => FnMaybeRawReturn<[], ReturnType<H>, DRejected | DThrown>;
 export function fn<
   H extends (input: any) => unknown,
   DRejected = PromiseRejected,
@@ -344,7 +344,7 @@ export function fn<
   options?: FnOptions<DRejected, DThrown>,
 ): {
   (input: Parameters<H>[0]): FnMaybeRawReturn<
-    Parameters<H>[0],
+    Parameters<H>,
     ReturnType<H>,
     DRejected | DThrown
   >;
@@ -361,8 +361,55 @@ export function fn<
     DRejected | DThrown
   >;
 };
+export function fn<
+  H extends (a: any, b: any) => unknown,
+  DRejected = PromiseRejected,
+  DThrown = UnknownException,
+>(
+  handler: H,
+  options?: FnOptions<DRejected, DThrown>,
+): {
+  (a: Parameters<H>[0], b: Parameters<H>[1]): FnMaybeRawReturn<
+    Parameters<H>,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+  (
+    a:
+      | Parameters<H>[0]
+      | Fect<Parameters<H>[0], FxShape>
+      | PromiseLike<Parameters<H>[0]>,
+    b:
+      | Parameters<H>[1]
+      | Fect<Parameters<H>[1], FxShape>
+      | PromiseLike<Parameters<H>[1]>,
+  ): FnReturn<
+    Fect<unknown, FxShape>,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+};
+export function fn<
+  H extends (a: any, b: any, c: any, ...rest: any[]) => unknown,
+  DRejected = PromiseRejected,
+  DThrown = UnknownException,
+>(
+  handler: H,
+  options?: FnOptions<DRejected, DThrown>,
+): {
+  (...args: Parameters<H>): FnMaybeRawReturn<
+    Parameters<H>,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+  (...args: unknown[]): FnReturn<
+    Fect<unknown, FxShape>,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+};
 export function fn(
-  handler: ((input: unknown) => unknown) | (() => unknown),
+  handler: ((...args: unknown[]) => unknown),
   options?: FnOptions,
 ) {
   const mapRejected = options?.mapRejected ?? options?.mapDefect ??
@@ -370,32 +417,29 @@ export function fn(
   const mapThrown = options?.mapThrown ?? options?.mapDefect ??
     defaultMapThrown;
 
-  // ── Zero-arg handler ──
-  if (handler.length === 0) {
-    return () => {
-      const outRaw = (handler as () => unknown)();
-
-      if (isPromiseLike(outRaw)) {
-        const asyncPayload = Promise.resolve(outRaw).then(
-          settleToPayload,
+  function toCoreInput(input: unknown): Fect<unknown, FxShape> {
+    if (isFect(input)) return input;
+    if (isPromiseLike(input)) {
+      return makeCoreAsync(
+        Promise.resolve(input).then(
+          (v) => ({ tag: "ok" as const, value: v }),
           (cause) => ({ tag: "err" as const, error: mapRejected(cause) }),
-        );
-        return makeCoreAsync(
-          asyncPayload as Promise<Payload<unknown, unknown>>,
-          { result: true },
-        );
-      }
-
-      if (isFail(outRaw)) return err(outRaw.error);
-      return outRaw;
-    };
+        ),
+        { async: true, result: true },
+      );
+    }
+    return ok(input) as unknown as Fect<unknown, FxShape>;
   }
 
-  // ── With-arg handler ──
-  return (input: unknown) => {
-    // Plain input path: keep plain outputs plain.
-    if (!isFect(input) && !isPromiseLike(input)) {
-      const outRaw = (handler as (i: unknown) => unknown)(input);
+  // ── Any-arg handler ──
+  return (...inputs: unknown[]) => {
+    const infectedCall = inputs.some((input) =>
+      isFect(input) || isPromiseLike(input)
+    );
+
+    // Plain call path: keep plain outputs plain.
+    if (!infectedCall) {
+      const outRaw = handler(...inputs);
 
       if (isPromiseLike(outRaw)) {
         const asyncPayload = Promise.resolve(outRaw).then(
@@ -404,7 +448,7 @@ export function fn(
         );
         return makeCoreAsync(
           asyncPayload as Promise<Payload<unknown, unknown>>,
-          { result: true },
+          { async: true, result: true },
         );
       }
 
@@ -412,31 +456,38 @@ export function fn(
       return outRaw;
     }
 
-    // Infected input path: always stay in carrier space.
-    const inCore: Fect<unknown, FxShape> = isFect(input)
-      ? input
-      : makeCoreAsync(
-        Promise.resolve(input).then(
-          (v) => ({ tag: "ok" as const, value: v }),
-          (cause) => ({ tag: "err" as const, error: mapRejected(cause) }),
+    const inCores = inputs.map(toCoreInput);
+    const mergedInFx = inCores.reduce<FxShape>(
+      (acc, core) => mergeFxRuntime(acc, core.fx),
+      {},
+    );
+    const inPayloads = inCores.map((core) => core.payload);
+
+    // Async infected input(s): resolve all payloads first.
+    if (inPayloads.some(isPromiseLike)) {
+      const asyncPayload = Promise.all(
+        inPayloads.map((payload) =>
+          Promise.resolve(payload).then(
+            (resolved) => resolved as Payload<unknown, unknown>,
+            (cause) =>
+              ({ tag: "err" as const, error: mapRejected(cause) }) as Payload<
+                unknown,
+                unknown
+              >,
+          )
         ),
-        { result: true },
-      );
+      ).then((resolvedInputs) => {
+        const firstErr = resolvedInputs.find((p) => p.tag === "err");
+        if (firstErr) return firstErr;
 
-    const inPayload = inCore.payload;
-
-    // ── Async input (payload is actually a Promise at runtime) ──
-    if (isPromiseLike(inPayload)) {
-      const asyncPayload = (
-        inPayload as unknown as Promise<Payload<unknown, unknown>>
-      ).then((resolved) => {
-        if (resolved.tag === "err") return resolved; // short-circuit
+        const values = resolvedInputs.map((p) => (p as { value: unknown }).value);
         let outRaw: unknown;
         try {
-          outRaw = (handler as (i: unknown) => unknown)(resolved.value);
+          outRaw = handler(...values);
         } catch (cause) {
           return { tag: "err" as const, error: mapThrown(cause) };
         }
+
         if (isPromiseLike(outRaw)) {
           return Promise.resolve(outRaw).then(
             settleToPayload,
@@ -448,25 +499,33 @@ export function fn(
 
       return makeCoreAsync(
         asyncPayload as Promise<Payload<unknown, unknown>>,
-        inCore.fx,
+        mergedInFx,
       );
     }
 
-    // ── Sync input ──
-    if (inPayload.tag === "err") return inCore; // short-circuit
+    // Fully sync infected input(s)
+    const firstErr = (inPayloads as Payload<unknown, unknown>[]).find((p) =>
+      p.tag === "err"
+    );
+    if (firstErr) {
+      // deno-lint-ignore no-explicit-any
+      return makeCore(firstErr as any, mergedInFx);
+    }
 
+    const values = (inPayloads as Array<{ tag: "ok"; value: unknown }>).map((
+      p,
+    ) => p.value);
     let outRaw: unknown;
     try {
-      outRaw = (handler as (i: unknown) => unknown)(inPayload.value);
+      outRaw = handler(...values);
     } catch (cause) {
       // deno-lint-ignore no-explicit-any
       return makeCore(
         { tag: "err", error: mapThrown(cause) } as any,
-        mergeFxRuntime(inCore.fx, { result: true }),
+        mergeFxRuntime(mergedInFx, { result: true }),
       );
     }
 
-    // Async output from sync input
     if (isPromiseLike(outRaw)) {
       const asyncPayload = Promise.resolve(outRaw).then(
         settleToPayload,
@@ -474,28 +533,29 @@ export function fn(
       );
       return makeCoreAsync(
         asyncPayload as Promise<Payload<unknown, unknown>>,
-        mergeFxRuntime(inCore.fx, { result: true }),
+        mergeFxRuntime(mergedInFx, { async: true, result: true }),
       );
     }
 
-    // Fully sync path
     if (isFail(outRaw)) {
       const outCore = err(outRaw.error);
       // deno-lint-ignore no-explicit-any
       return makeCore(
         outCore.payload as any,
-        mergeFxRuntime(inCore.fx, outCore.fx),
+        mergeFxRuntime(mergedInFx, outCore.fx),
       );
     }
+
     if (isFect(outRaw)) {
       // deno-lint-ignore no-explicit-any
       return makeCore(
         outRaw.payload as any,
-        mergeFxRuntime(inCore.fx, outRaw.fx),
+        mergeFxRuntime(mergedInFx, outRaw.fx),
       );
     }
+
     // deno-lint-ignore no-explicit-any
-    return makeCore({ tag: "ok", value: outRaw } as any, inCore.fx);
+    return makeCore({ tag: "ok", value: outRaw } as any, mergedInFx);
   };
 }
 
