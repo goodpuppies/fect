@@ -72,33 +72,35 @@ const summarize = Fect.fn((repos: GitHubRepo[]) => {
 
 // ── Run ─────────────────────────────────────────────────────────────
 
-// The pipeline composes synchronously — carriers thread through instantly.
+
 // Async is just another infection in Fx. The only `await` is at discharge.
-export async function runInfectionExample4(rawInput: string): Promise<void> {
-  const parsed = parseInput(rawInput);
-  const user = fetchUser(parsed);
-  const repos = fetchRepos(user);
-  const result = summarize(repos);
+export const runInfectionExample = Fect.fn(
+  async (rawInput: string): Promise<void> => {
+    const parsed = parseInput(rawInput); //Fect<string, {result: InputEmpty;}>
+    const user = fetchUser(parsed); //Fect<GitHubUser, {async: true;result: InputEmpty | HttpError;}>
+    const repos = fetchRepos(user); //Fect<GitHubRepo[], {async: true; result: InputEmpty | HttpError;}>
+    const result = summarize(repos); // const result: Fect<{count: number;top: string[];}, {async: true;result: InputEmpty | HttpError;}>
 
-  const message = await Fect.match(result).with({
-    ok: (value) =>
-      `Repos: ${value.count} | Top: ${value.top.join(", ") || "none"}`,
-    err: {
-      PromiseRejected: () => "Error: promise rejected",
-      UnknownException: (e) => {
-        if (e.cause instanceof Error) {
-          return `Error: unknown exception ${e.cause.message}`;
-        }
-        return "Error: unknown exception";
+    const message = await Fect.match(result).with({
+      ok: (value) =>
+        `Repos: ${value.count} | Top: ${value.top.join(", ") || "none"}`,
+      err: {
+        PromiseRejected: () => "Error: promise rejected",
+        UnknownException: (e) => {
+          if (e.cause instanceof Error) {
+            return `Error: unknown exception ${e.cause.message}`;
+          }
+          return "Error: unknown exception";
+        },
+        InputEmpty: () => "Error: input username is empty",
+        HttpError: (e) => `Error: HTTP ${e.status} at ${e.where}`,
       },
-      InputEmpty: () => "Error: input username is empty",
-      HttpError: (e) => `Error: HTTP ${e.status} at ${e.where}`,
-    },
-  });
+    });
 
-  console.log(message);
-}
+    console.log(message);
+  },
+);
 
 if (import.meta.main) {
-  await runInfectionExample4(Deno.args[0] ?? "denoland");
+  runInfectionExample(Deno.args[0] ?? "denoland");
 }

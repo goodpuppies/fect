@@ -34,7 +34,7 @@ chain and you discharge it once, when you need the concrete value.
 `Fect.fn` wraps a function so it accepts both plain values and Fect-wrapped
 values. When you pass a wrapped value, the function chains onto it
 automatically. When you pass a plain value, it behaves like a normal function
-call — no overhead, no wrapping.
+call.
 
 ```ts
 const double = Fect.fn((x: number) => x * 2);
@@ -46,11 +46,10 @@ double(someAsyncFect); // async Fect<10> — async propagates
 
 If you've used promises, you've already seen the core idea. In JavaScript,
 `Promise.resolve(Promise.resolve(123))` gives you `Promise<number>`, not
-`Promise<Promise<number>>` — the runtime flattens nested promises automatically.
-Most people don't even think about it. Fect does the same thing: when you pass a
-wrapped value to a Fect function, it flattens. You never get
-`Fect<Fect<number>>`. The inner value is always unwrapped before your handler
-runs, whether it's async, an error, or both.
+`Promise<Promise<number>>` the runtime flattens nested promises automatically.
+Fect does the same thing: when you pass a wrapped value to a Fect function, it
+flattens. You never get `Fect<Fect<number>>`. The inner value is always unwrapped 
+before your handler runs, whether it's async, an error, or both.
 
 Rust's `?` operator is another take on this — it unwraps `Result` at each call
 site. But `?` is still function coloring: you write it explicitly, and it
