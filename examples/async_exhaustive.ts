@@ -66,8 +66,6 @@ const summarize = Fect.fn((repos: GitHubRepo[]) => {
     .sort((a, b) => b.stargazers_count - a.stargazers_count)
     .slice(0, 3)
     .map((repo) => `${repo.name} (${repo.stargazers_count}★)`);
-  
-  throw new Error("catch me")
 
   return { count: repos.length, top };
 });
