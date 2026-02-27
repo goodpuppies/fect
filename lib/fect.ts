@@ -119,13 +119,25 @@ type FnReturn_<TIn, TOut, D> = Fect<
 type FnReturn<TIn, TOut, D = never> = FnReturn_<TIn, TOut, D> extends
   Fect<infer A, infer Fx extends FxShape> ? Fect<A, Fx> : never;
 
-type HasInfectedOut<T> = [Extract<T, PromiseLike<any> | Fail<any> | Fect<any, any>>] extends
-  [never] ? false
-  : true;
+type HasInfectedOut<T> =
+  [Extract<T, PromiseLike<any> | Fail<any> | Fect<any, any>>] extends [never]
+    ? false
+    : true;
 
 type FnMaybeRawReturn<TIn, TOut, D> = HasInfectedOut<TOut> extends true
   ? FnReturn<TIn, TOut, D>
   : TOut;
+
+type InputArgToFx<TArg, D> = TArg extends Fect<any, infer Fx extends FxShape>
+  ? Fx
+  : TArg extends PromiseLike<any> ? { async: true; result: D }
+  : {};
+
+type MergeInputFx2<A, B, D> = MergeFx<InputArgToFx<A, D>, InputArgToFx<B, D>>;
+type MergeInputFx3<A, B, C, D> = MergeFx<
+  MergeFx<InputArgToFx<A, D>, InputArgToFx<B, D>>,
+  InputArgToFx<C, D>
+>;
 
 // ===== Runtime helpers =====
 
@@ -245,7 +257,10 @@ export function raise<R extends ErrorRaiser>(
   errorClass: R,
   ...args: Parameters<R["err"]>
 ): ReturnType<R["err"]>;
-export function raise(errorOrClass: unknown, ...args: unknown[]): Fail<unknown> {
+export function raise(
+  errorOrClass: unknown,
+  ...args: unknown[]
+): Fail<unknown> {
   if (
     (typeof errorOrClass === "function" || typeof errorOrClass === "object") &&
     errorOrClass !== null &&
@@ -287,6 +302,129 @@ export function get<T, K extends keyof T>(
 export function get(value: unknown, key: PropertyKey): unknown {
   const project = fn((input: Record<PropertyKey, unknown>) => input[key]);
   return project(value as Record<PropertyKey, unknown>);
+}
+
+/**
+ * Expression-style conditional that composes with infection.
+ *
+ * ```ts
+ * const value = ifElse(flag, () => a, () => b);
+ * const value = ifElse(infectedFlag, () => a, () => b);
+ * ```
+ */
+const ifElseImpl = fn((
+  condition: boolean,
+  onTrue: () => unknown,
+  onFalse: () => unknown,
+) => (condition ? onTrue() : onFalse()));
+
+type IfElseCondition = boolean | Fect<boolean, FxShape> | PromiseLike<boolean>;
+
+type IfElseReturn<C extends IfElseCondition, T, F> = C extends
+  Fect<boolean, infer Fx extends FxShape> ? FnReturn<C, T | F, never>
+  : C extends PromiseLike<boolean> ? FnReturn<
+      Fect<
+        boolean,
+        { async: true; result: PromiseRejected | UnknownException }
+      >,
+      T | F,
+      never
+    >
+  : T | F;
+
+type IfElseBuilder<C extends IfElseCondition> = {
+  with<T, F>(
+    handlers: { then: BranchValue<T>; else: BranchValue<F> },
+  ): IfElseReturn<C, T, F>;
+  then<T>(onTrue: BranchValue<T>): {
+    else<F>(onFalse: BranchValue<F>): IfElseReturn<C, T, F>;
+  };
+  thenDo<T>(onTrue: () => T): {
+    elseDo<F>(onFalse: () => F): IfElseReturn<C, T, F>;
+  };
+};
+
+export type Deferred<T> = {
+  readonly _tag: "Deferred";
+  readonly run: () => T;
+};
+
+type BranchValue<T> = T | Deferred<T>;
+
+export function defer<T>(run: () => T): Deferred<T> {
+  return { _tag: "Deferred", run };
+}
+
+function resolveBranchValue<T>(input: BranchValue<T>): T {
+  if (
+    typeof input === "object" &&
+    input !== null &&
+    "_tag" in input &&
+    (input as { _tag?: unknown })._tag === "Deferred" &&
+    "run" in input &&
+    typeof (input as { run?: unknown }).run === "function"
+  ) {
+    return (input as Deferred<T>).run();
+  }
+  return input as T;
+}
+
+export function if_<C extends IfElseCondition>(
+  condition: C,
+): IfElseBuilder<C>;
+export function if_<C extends IfElseCondition, T, F>(
+  condition: C,
+  onTrue: () => T,
+  onFalse: () => F,
+): IfElseReturn<C, T, F>;
+export function if_<C extends IfElseCondition, T, F>(
+  condition: C,
+  onTrue?: () => T,
+  onFalse?: () => F,
+): IfElseReturn<C, T, F> | IfElseBuilder<C> {
+  if (typeof onTrue === "function" && typeof onFalse === "function") {
+    return ifElseImpl(condition as any, onTrue, onFalse) as IfElseReturn<
+      C,
+      T,
+      F
+    >;
+  }
+
+  const builder: IfElseBuilder<C> = {
+    with<TT, FF>(
+      handlers: { then: BranchValue<TT>; else: BranchValue<FF> },
+    ): IfElseReturn<C, TT, FF> {
+      return ifElseImpl(
+        condition as any,
+        () => resolveBranchValue(handlers.then),
+        () => resolveBranchValue(handlers.else),
+      ) as IfElseReturn<C, TT, FF>;
+    },
+    then<TT>(whenTrue: BranchValue<TT>) {
+      return {
+        else<FF>(whenFalse: BranchValue<FF>): IfElseReturn<C, TT, FF> {
+          return ifElseImpl(
+            condition as any,
+            () => resolveBranchValue(whenTrue),
+            () => resolveBranchValue(whenFalse),
+          ) as IfElseReturn<C, TT, FF>;
+        },
+      };
+    },
+    thenDo<TT>(whenTrue: () => TT) {
+      return {
+        elseDo<FF>(whenFalse: () => FF): IfElseReturn<C, TT, FF> {
+          return ifElseImpl(
+            condition as any,
+            whenTrue,
+            whenFalse,
+          ) as IfElseReturn<C, TT, FF>;
+        },
+      };
+    },
+  };
+
+  return builder;
 }
 
 /**
@@ -429,23 +567,62 @@ export function fn<
     ReturnType<H>,
     DRejected | DThrown
   >;
-  (
-    a:
+  <
+    AIn extends
       | Parameters<H>[0]
       | Fect<Parameters<H>[0], FxShape>
       | PromiseLike<Parameters<H>[0]>,
-    b:
+    BIn extends
       | Parameters<H>[1]
       | Fect<Parameters<H>[1], FxShape>
       | PromiseLike<Parameters<H>[1]>,
+  >(
+    a: AIn,
+    b: BIn,
   ): FnReturn<
-    Fect<unknown, FxShape>,
+    Fect<unknown, MergeInputFx2<AIn, BIn, DRejected | DThrown>>,
     ReturnType<H>,
     DRejected | DThrown
   >;
 };
 export function fn<
-  H extends (a: any, b: any, c: any, ...rest: any[]) => unknown,
+  H extends (a: any, b: any, c: any) => unknown,
+  DRejected = PromiseRejected,
+  DThrown = UnknownException,
+>(
+  handler: H,
+  options?: FnOptions<DRejected, DThrown>,
+): {
+  (a: Parameters<H>[0], b: Parameters<H>[1], c: Parameters<H>[2]): FnMaybeRawReturn<
+    Parameters<H>,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+  <
+    AIn extends
+      | Parameters<H>[0]
+      | Fect<Parameters<H>[0], FxShape>
+      | PromiseLike<Parameters<H>[0]>,
+    BIn extends
+      | Parameters<H>[1]
+      | Fect<Parameters<H>[1], FxShape>
+      | PromiseLike<Parameters<H>[1]>,
+    CIn extends
+      | Parameters<H>[2]
+      | Fect<Parameters<H>[2], FxShape>
+      | PromiseLike<Parameters<H>[2]>,
+  >(
+    a: AIn,
+    b: BIn,
+    c: CIn,
+  ): FnReturn<
+    Fect<unknown, MergeInputFx3<AIn, BIn, CIn, DRejected | DThrown>>,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+};
+export function fn<
+  H extends (a: any, b: any, c: any, d: any, ...rest: any[]) => unknown,
   DRejected = PromiseRejected,
   DThrown = UnknownException,
 >(
@@ -464,7 +641,7 @@ export function fn<
   >;
 };
 export function fn(
-  handler: ((...args: unknown[]) => unknown),
+  handler: (...args: unknown[]) => unknown,
   options?: FnOptions,
 ) {
   const mapRejected = options?.mapRejected ?? options?.mapDefect ??
@@ -535,7 +712,9 @@ export function fn(
         const firstErr = resolvedInputs.find((p) => p.tag === "err");
         if (firstErr) return firstErr;
 
-        const values = resolvedInputs.map((p) => (p as { value: unknown }).value);
+        const values = resolvedInputs.map((p) =>
+          (p as { value: unknown }).value
+        );
         let outRaw: unknown;
         try {
           outRaw = handler(...values);
@@ -613,4 +792,3 @@ export function fn(
     return makeCore({ tag: "ok", value: outRaw } as any, mergedInFx);
   };
 }
-
