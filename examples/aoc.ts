@@ -1,4 +1,4 @@
-import { Fect, fn, List, match } from "../mod.ts";
+import { Fect, fn, List, match, type ListIndexOutOfBounds } from "../mod.ts";
 import { charToDigit, mul, strEq, type wstr } from "./pseudostd.ts";
 
 class NotMul extends Fect.error("NotMul")() {}
@@ -106,6 +106,7 @@ const scan = fn(
             return scan(chars, step.next, acc + step.value);
           },
           err: (err) => {
+            err satisfies NotMul | ExpectedComma | ExpectedCloseParen | ListIndexOutOfBounds
             console.log(err);
             console.log(`skipping at ${i}`);
             return scan(chars, i + 1, acc);
