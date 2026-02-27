@@ -234,6 +234,61 @@ export function fail<E>(error: E): Fail<E> {
   return { [FAIL]: true, error };
 }
 
+type ErrorRaiser = { err: (...args: any[]) => Fail<any> };
+
+/**
+ * Ergonomic helper for producing `Fail` values.
+ * Accepts either an error instance/value or a tagged error class.
+ */
+export function raise<E>(error: E): Fail<E>;
+export function raise<R extends ErrorRaiser>(
+  errorClass: R,
+  ...args: Parameters<R["err"]>
+): ReturnType<R["err"]>;
+export function raise(errorOrClass: unknown, ...args: unknown[]): Fail<unknown> {
+  if (
+    (typeof errorOrClass === "function" || typeof errorOrClass === "object") &&
+    errorOrClass !== null &&
+    "err" in errorOrClass &&
+    typeof (errorOrClass as { err?: unknown }).err === "function"
+  ) {
+    return (errorOrClass as { err: (...args: unknown[]) => Fail<unknown> }).err(
+      ...args,
+    );
+  }
+  return fail(errorOrClass);
+}
+
+/**
+ * Build typed field projectors that participate in infection automatically.
+ *
+ * ```ts
+ * type Step = { value: number; next: number };
+ * const step = props<Step>();
+ * const stepValue = step("value");
+ * const stepNext = step("next");
+ * ```
+ */
+export function props<T>() {
+  return function <K extends keyof T>(key: K) {
+    return fn((value: T) => value[key]);
+  };
+}
+
+export function get<T, K extends keyof T>(value: T, key: K): T[K];
+export function get<T, Fx extends FxShape, K extends keyof T>(
+  value: Fect<T, Fx>,
+  key: K,
+): Fect<T[K], Fx>;
+export function get<T, K extends keyof T>(
+  value: PromiseLike<T>,
+  key: K,
+): Fect<T[K], { async: true; result: PromiseRejected | UnknownException }>;
+export function get(value: unknown, key: PropertyKey): unknown {
+  const project = fn((input: Record<PropertyKey, unknown>) => input[key]);
+  return project(value as Record<PropertyKey, unknown>);
+}
+
 /**
  * Is the carrier in the ok state?
  * Only meaningful on sync carriers — use `match` for async.
