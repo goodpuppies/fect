@@ -1,4 +1,4 @@
-import { Fect, fn, List, match, Option, strEq } from "../mod.ts";
+import { Fect, fn, List, match, Option } from "../mod.ts";
 
 export const mul = fn(
   (a: number, b: number) => a * b,
@@ -14,3 +14,12 @@ export const charToDigit = fn(
 );
 
 export type wstr = readonly string[]
+
+export function strEq(
+  a: string | readonly string[],
+  b: string | readonly string[],
+): boolean {
+  const left = typeof a === "string" ? a : a.join("");
+  const right = typeof b === "string" ? b : b.join("");
+  return left === right;
+}

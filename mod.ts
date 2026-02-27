@@ -3,7 +3,6 @@ export * from "./lib/match.ts";
 export * from "./lib/remotevalue.ts";
 export * from "./lib/adts.ts";
 export * from "./lib/list.ts";
-export * from "./lib/string.ts";
 
 import {
   defer,
@@ -26,7 +25,6 @@ import { match } from "./lib/match.ts";
 import { isRemoteValue, RemoteValue, remoteValue } from "./lib/remotevalue.ts";
 import * as Option from "./lib/adts.ts";
 import * as List from "./lib/list.ts";
-import { strEq } from "./lib/string.ts";
 
 function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
   return (
@@ -87,5 +85,4 @@ export const Fect = {
   isRemoteValue,
   Option,
   List,
-  strEq,
 } as const;
