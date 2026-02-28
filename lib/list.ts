@@ -1,9 +1,18 @@
-import { FectError, err, ok, type Fect } from "./fect.ts";
+import {
+  FectError,
+  err,
+  ok,
+  type Fect,
+  type FectErrorClass,
+} from "./fect.ts";
 import { None, type Option, Some } from "./adts.ts";
 
-export class ListIndexOutOfBounds
-  extends FectError("ListIndexOutOfBounds")<{ index: number; length: number }>()
-{}
+const ListIndexOutOfBoundsBase: FectErrorClass<
+  "ListIndexOutOfBounds",
+  { index: number; length: number }
+> = FectError("ListIndexOutOfBounds")<{ index: number; length: number }>();
+
+export class ListIndexOutOfBounds extends ListIndexOutOfBoundsBase {}
 
 export function length<T>(items: readonly T[]): number {
   return items.length;

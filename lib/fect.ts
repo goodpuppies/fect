@@ -288,7 +288,25 @@ export function raise(
  * const stepNext = step("next");
  * ```
  */
-export function props<T>() {
+export function props<T>(): <K extends keyof T>(
+  key: K,
+) => {
+  (value: T): FnMaybeRawReturn<
+    [value: T],
+    T[K],
+    PromiseRejected | UnknownException
+  >;
+  <FxIn extends FxShape>(value: Fect<T, FxIn>): FnReturn<
+    Fect<T, FxIn>,
+    T[K],
+    PromiseRejected | UnknownException
+  >;
+  (value: PromiseLike<T>): FnReturn<
+    Fect<T, { async: true; result: PromiseRejected | UnknownException }>,
+    T[K],
+    PromiseRejected | UnknownException
+  >;
+} {
   return function <K extends keyof T>(key: K) {
     return fn((value: T) => value[key]);
   };
