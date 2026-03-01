@@ -73,6 +73,29 @@ Deno.test("match handles multi-error pipeline exhaustively", () => {
   assertEquals(message, "denied:admin");
 });
 
+Deno.test("partial handles selected tagged errors and keeps others", () => {
+  const step = fn((s: string) => {
+    if (s === "") return NotFound.err({ resource: "input" });
+    if (s === "admin") return Unauthorized.err({ userId: s });
+    return s.toUpperCase();
+  });
+
+  const out = Fect.partial(step("")).with({
+    err: {
+      NotFound: () => "guest",
+    },
+  });
+
+  const message = match(out).with({
+    ok: (value) => `ok:${value}`,
+    err: {
+      Unauthorized: (e) => `denied:${e.userId}`,
+    },
+  });
+
+  assertEquals(message, "ok:guest");
+});
+
 // ===== Type-level exhaustiveness checks =====
 if (false) {
   class A extends FectError("A")<{ value: number }>() {}
@@ -80,7 +103,8 @@ if (false) {
 
   const step = fn((_n: number) => {
     if (Math.random() > 0.5) return A.err({ value: 1 });
-    return B.err({ message: "hi" });
+    if (Math.random() > 0.5) return B.err({ message: "hi" });
+    return _n;
   });
 
   const r = step(1);
@@ -109,6 +133,28 @@ if (false) {
       B: (e: { _tag: "B"; message: string }) => e.message.length,
       // @ts-expect-error extra branch C must fail compile
       C: (_e: never) => 0,
+    },
+  });
+
+  const narrowed = Fect.partial(r).with({
+    err: {
+      A: () => 0,
+    },
+  });
+
+  match(narrowed).with({
+    ok: () => 0,
+    err: {
+      B: (e: { _tag: "B"; message: string }) => e.message.length,
+    },
+  });
+
+  match(narrowed).with({
+    ok: () => 0,
+    err: {
+      B: (e: { _tag: "B"; message: string }) => e.message.length,
+      // @ts-expect-error handled branch A must not be present anymore
+      A: (e: { _tag: "A"; value: number }) => e.value,
     },
   });
 }

@@ -1,4 +1,15 @@
-import { isFect, type Fect, type FxShape, type TaggedError } from "./fect.ts";
+import {
+  forceFectLazy,
+  type FectLazy,
+  isFect,
+  isFectLazy,
+  type Fect,
+  type FxShape,
+  makeCore,
+  makeCoreAsync,
+  type Simplify,
+  type TaggedError,
+} from "./fect.ts";
 
 type ErrorOfFx<Fx extends FxShape> = Fx extends { result: infer E } ? E : never;
 type Exact<T, Shape> = T & Record<Exclude<keyof T, keyof Shape>, never>;
@@ -39,6 +50,25 @@ type TaggedBoundValue<T> = T extends { value: infer V } ? V : T;
 type TaggedValueHandlers<T extends TaggedValue, R> = {
   [K in T["_tag"] & string]: (value: TaggedBoundValue<Extract<T, { _tag: K }>>) => R;
 };
+
+type PartialErrorHandlers<E extends TaggedError, A> = Partial<{
+  [K in E["_tag"] & string]: (error: Extract<E, { _tag: K }>) => A;
+}>;
+
+type UnhandledErrors<E, THandled extends Partial<Record<string, unknown>>> =
+  E extends TaggedError ? E extends { _tag: infer TTag extends string }
+    ? TTag extends keyof THandled & string ? never : E
+    : E
+    : E;
+
+type ReplaceFxResult<Fx extends FxShape, E> = [E] extends [never]
+  ? Simplify<Omit<Fx, "result">>
+  : Simplify<Omit<Fx, "result"> & { result: E }>;
+
+type PartialFx<
+  Fx extends FxShape,
+  THandled extends Partial<Record<string, unknown>>,
+> = ReplaceFxResult<Fx, UnhandledErrors<ErrorOfFx<Fx>, THandled>>;
 
 function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
   return (
@@ -127,21 +157,44 @@ function dispatchPlainValue<T, THandlers extends PlainMatchHandlers<T>>(
   throw new Error(`Unhandled match value: ${String(value)} (${typeof value})`);
 }
 
+function partiallyHandlePayload<A>(
+  payload: { tag: "ok"; value: A } | { tag: "err"; error: unknown },
+  handlers: Record<string, (error: unknown) => A>,
+): { tag: "ok"; value: A } | { tag: "err"; error: unknown } {
+  if (payload.tag === "ok") return payload;
+
+  const maybeError = payload.error;
+  if (
+    typeof maybeError === "object" &&
+    maybeError !== null &&
+    "_tag" in (maybeError as Record<PropertyKey, unknown>) &&
+    typeof (maybeError as { _tag?: unknown })._tag === "string"
+  ) {
+    const tag = (maybeError as { _tag: string })._tag;
+    const handler = handlers[tag];
+    if (typeof handler === "function") {
+      return { tag: "ok", value: handler(payload.error) };
+    }
+  }
+
+  return payload;
+}
+
 export function match<A, Fx extends { async: true } & FxShape>(
-  input: Fect<A, Fx>,
+  input: Fect<A, Fx> | FectLazy<Fect<A, Fx>>,
 ): {
   with<TOk, TErr>(
     handlers: MatchHandlers<A, ErrorOfFx<Fx>, TOk, TErr>,
   ): Promise<TOk | TErr>;
 };
 export function match<A, Fx extends FxShape>(
-  input: Fect<A, Fx>,
+  input: Fect<A, Fx> | FectLazy<Fect<A, Fx>>,
 ): {
   with<TOk, TErr>(
     handlers: MatchHandlers<A, ErrorOfFx<Fx>, TOk, TErr>,
   ): TOk | TErr;
 };
-export function match<T>(input: T): {
+export function match<T>(input: T | FectLazy<T>): {
   with<R>(
     handlers: Exact<TaggedValueHandlers<T & TaggedValue, R>, TaggedValueHandlers<T & TaggedValue, R>>,
   ): R;
@@ -150,7 +203,9 @@ export function match<T>(input: T): {
   ): UnionOfHandlerReturns<THandlers>;
 };
 export function match(input: unknown) {
-  if (isFect(input)) {
+  const resolvedInput = isFectLazy(input) ? forceFectLazy(input) : input;
+
+  if (isFect(resolvedInput)) {
     return {
       with<TOk, TErr>(
         handlers: {
@@ -160,7 +215,7 @@ export function match(input: unknown) {
             | Record<string, (error: unknown) => TErr>;
         },
       ): (TOk | TErr) | Promise<TOk | TErr> {
-        const payload = input.payload as
+        const payload = resolvedInput.payload as
           | { tag: "ok"; value: unknown }
           | { tag: "err"; error: unknown }
           | Promise<
@@ -182,7 +237,51 @@ export function match(input: unknown) {
     with<THandlers extends PlainMatchHandlers<unknown>>(
       handlers: THandlers,
     ): UnionOfHandlerReturns<THandlers> {
-      return dispatchPlainValue(input, handlers);
+      return dispatchPlainValue(resolvedInput, handlers);
+    },
+  };
+}
+
+export function partial<A, Fx extends FxShape>(
+  input: Fect<A, Fx> | FectLazy<Fect<A, Fx>>,
+): {
+  with<
+    THandled extends PartialErrorHandlers<ErrorOfFx<Fx> & TaggedError, A>,
+  >(
+    handlers: {
+      err: THandled;
+    },
+  ): Fect<A, PartialFx<Fx, THandled>>;
+};
+export function partial<A, Fx extends FxShape>(
+  input: Fect<A, Fx> | FectLazy<Fect<A, Fx>>,
+) {
+  const resolvedInput = isFectLazy(input) ? forceFectLazy(input) : input;
+
+  return {
+    with(handlers: { err: Record<string, (error: unknown) => A> }) {
+      const errHandlers = handlers.err as Record<string, (error: unknown) => A>;
+      const payload = resolvedInput.payload as
+        | { tag: "ok"; value: A }
+        | { tag: "err"; error: unknown }
+        | Promise<{ tag: "ok"; value: A } | { tag: "err"; error: unknown }>;
+
+      if (isPromiseLike(payload)) {
+        return makeCoreAsync(
+          Promise.resolve(payload).then((resolved) =>
+            partiallyHandlePayload(resolved, errHandlers)
+          ),
+          resolvedInput.fx,
+        ) as unknown as Fect<A, PartialFx<Fx, typeof handlers.err>>;
+      }
+
+      return makeCore(
+        partiallyHandlePayload(payload, errHandlers) as unknown as {
+          tag: "ok";
+          value: A;
+        } | { tag: "err"; error: ErrorOfFx<Fx> },
+        resolvedInput.fx,
+      ) as unknown as Fect<A, PartialFx<Fx, typeof handlers.err>>;
     },
   };
 }

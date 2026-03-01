@@ -121,6 +121,22 @@ const message = await Fect.match(result).with({
 
 Miss an error branch and TypeScript will tell you at compile time.
 
+If you want to handle only some tagged errors and keep the rest infected, use
+`Fect.partial`:
+
+```ts
+const userWithoutInputError = Fect.partial(user).with({
+  err: {
+    InputEmpty: () => {
+      throw new Error("input username is empty");
+    },
+  },
+});
+
+// `InputEmpty` is removed from the error channel here.
+const repos = fetchRepos(userWithoutInputError);
+```
+
 For non-tagged errors, pass a function:
 
 ```ts
@@ -235,6 +251,7 @@ console.log(message);
 | `Fect.fail(error)`              | Signal an error inside a handler             |
 | `Fect.error(tag)<Fields>()`     | Declare a tagged error class                 |
 | `Fect.match(input).with({...})` | Pattern match on carriers or plain values    |
+| `Fect.partial(input).with({...})` | Match some tagged errors and continue flow  |
 | `Fect.try(carrier)`             | Extract value or throw                       |
 | `Fect.isOk(carrier)`            | Check if carrier holds a value               |
 | `Fect.isErr(carrier)`           | Check if carrier holds an error              |

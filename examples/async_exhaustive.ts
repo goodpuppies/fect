@@ -57,7 +57,7 @@ const fetchRepos = Fect.fn(async (user: GitHubUser) => {
     return HttpError.err({ status: response.status, where: "fetchRepos" });
   }
 
-  return (await response.json()) as GitHubRepo[];
+  return (response.json()) as Promise<GitHubRepo[]>;
 });
 
 const summarize = Fect.fn((repos: GitHubRepo[]) => {
@@ -76,11 +76,21 @@ const summarize = Fect.fn((repos: GitHubRepo[]) => {
 // Async is just another infection in Fx. The only `await` is at discharge.
 export const runInfectionExample = Fect.fn(
   async (rawInput: string): Promise<void> => {
+    
     const parsed = parseInput(rawInput); //Fect<string, {result: InputEmpty;}>
     const user = fetchUser(parsed); //Fect<GitHubUser, {async: true;result: InputEmpty | HttpError;}>
-    const repos = fetchRepos(user); //Fect<GitHubRepo[], {async: true; result: InputEmpty | HttpError;}>
-    const result = summarize(repos); // const result: Fect<{count: number;top: string[];}, {async: true;result: InputEmpty | HttpError;}>
-
+    const userWithoutInputError = Fect.partial(user).with({
+      err: {
+        InputEmpty: () => {
+          throw new Error("input username is empty");
+        },
+      },
+    });
+    const repos = fetchRepos(userWithoutInputError); //Fect<GitHubRepo[], {async: true; result: HttpError | PromiseRejected | UnknownException;}>
+    const result = summarize(repos); // const result: Fect<{count: number;top: string[];}, {async: true;result: HttpError | PromiseRejected | UnknownException;}>
+    
+    
+    
     const message = await Fect.match(result).with({
       ok: (value) =>
         `Repos: ${value.count} | Top: ${value.top.join(", ") || "none"}`,
@@ -92,7 +102,6 @@ export const runInfectionExample = Fect.fn(
           }
           return "Error: unknown exception";
         },
-        InputEmpty: () => "Error: input username is empty",
         HttpError: (e) => `Error: HTTP ${e.status} at ${e.where}`,
       },
     });

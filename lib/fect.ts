@@ -15,6 +15,8 @@
 // - `match(fect).with({ ok, err })` discharges a carrier. For async carriers
 //   it returns a Promise. No manual unwrapping needed — JS auto-flattens.
 
+import { fn } from "./fn.ts";
+
 // ===== Utility types =====
 
 export type Simplify<T> = { [K in keyof T]: T[K] } & {};
@@ -64,6 +66,7 @@ type IsPromise<T> = T extends Promise<any> ? true : false;
 const FECT = Symbol("fect");
 const FECT_TYPE = Symbol("fect_type");
 const FAIL = Symbol("fect_fail");
+const FECT_LAZY = Symbol("fect_lazy");
 
 // ===== Payload & core types =====
 
@@ -87,6 +90,17 @@ export type Fail<E> = {
   readonly error: E;
 };
 
+/** Lazy wrapper used to defer evaluation in the infection pipeline. */
+export type FectLazy<T> = {
+  readonly [FECT_LAZY]: true;
+  force: () => T;
+};
+
+type LazyArg<T> = T | FectLazy<T>;
+type LazyArgs<TArgs extends unknown[]> = {
+  [K in keyof TArgs]: LazyArg<TArgs[K]>;
+};
+
 // ===== Type-level plumbing =====
 
 type ToFect<T> = T extends Fect<infer A, infer Fx extends FxShape> ? Fect<A, Fx>
@@ -94,6 +108,7 @@ type ToFect<T> = T extends Fect<infer A, infer Fx extends FxShape> ? Fect<A, Fx>
 
 /** Map a handler's raw return type to a Fect. Unwraps Promise (async tag added separately). */
 type ToFectOut<T> = T extends Promise<infer U> ? ToFectOut<U>
+  : T extends FectLazy<infer U> ? ToFectOut<U>
   : T extends Fail<infer E> ? Fect<never, { result: E }>
   : ToFect<T>;
 
@@ -116,36 +131,40 @@ type FnReturn_<TIn, TOut, D> = Fect<
 >;
 
 /** Force TS to resolve the alias so hovers show `Fect<A, Fx>` not `FnReturn<…>`. */
-type FnReturn<TIn, TOut, D = never> = FnReturn_<TIn, TOut, D> extends
+export type FnReturn<TIn, TOut, D = never> = FnReturn_<TIn, TOut, D> extends
   Fect<infer A, infer Fx extends FxShape> ? Fect<A, Fx> : never;
 
 type HasInfectedOut<T> =
-  [Extract<T, PromiseLike<any> | Fail<any> | Fect<any, any>>] extends [never]
+  [Extract<T, PromiseLike<any> | Fail<any> | Fect<any, any> | FectLazy<any>>] extends [never]
     ? false
     : true;
 
-type FnMaybeRawReturn<TIn, TOut, D> = HasInfectedOut<TOut> extends true
+export type FnMaybeRawReturn<TIn, TOut, D> = HasInfectedOut<TOut> extends true
   ? FnReturn<TIn, TOut, D>
   : TOut;
 
 type InputArgToFx<TArg, D> = TArg extends Fect<any, infer Fx extends FxShape>
   ? Fx
+  : TArg extends FectLazy<any> ? { fectLazy: true }
   : TArg extends PromiseLike<any> ? { async: true; result: D }
   : {};
 
-type MergeInputFx2<A, B, D> = MergeFx<InputArgToFx<A, D>, InputArgToFx<B, D>>;
-type MergeInputFx3<A, B, C, D> = MergeFx<
+export type MergeInputFx2<A, B, D> = MergeFx<
+  InputArgToFx<A, D>,
+  InputArgToFx<B, D>
+>;
+export type MergeInputFx3<A, B, C, D> = MergeFx<
   MergeFx<InputArgToFx<A, D>, InputArgToFx<B, D>>,
   InputArgToFx<C, D>
 >;
-type MergeInputFx4<A, B, C, DArg, D> = MergeFx<
+export type MergeInputFx4<A, B, C, DArg, D> = MergeFx<
   MergeInputFx3<A, B, C, D>,
   InputArgToFx<DArg, D>
 >;
 
 // ===== Runtime helpers =====
 
-function makeCore<A, Fx extends FxShape>(
+export function makeCore<A, Fx extends FxShape>(
   payload: Payload<A, ErrorOfFx<Fx>>,
   fx: Fx,
 ): Fect<A, Fx> {
@@ -162,7 +181,7 @@ function makeCore<A, Fx extends FxShape>(
  * The type system sees a resolved Payload — this is a deliberate lie that
  * lets async be just another Fx infection rather than a separate carrier type.
  */
-function makeCoreAsync<A, Fx extends FxShape>(
+export function makeCoreAsync<A, Fx extends FxShape>(
   payload: Promise<Payload<any, any>>,
   fx: Fx,
 ): Fect<A, Fx> {
@@ -184,7 +203,7 @@ export function isFect(value: unknown): value is Fect<unknown, FxShape> {
 }
 
 /** Runtime check: is this value a `Fail` wrapper? */
-function isFail(value: unknown): value is Fail<unknown> {
+export function isFail(value: unknown): value is Fail<unknown> {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -192,7 +211,7 @@ function isFail(value: unknown): value is Fail<unknown> {
   );
 }
 
-function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+export function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -200,21 +219,91 @@ function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
   );
 }
 
-function mergeFxRuntime(a: FxShape, b: FxShape): FxShape {
+/** Runtime check: is this value a `FectLazy` wrapper? */
+export function isFectLazy(value: unknown): value is FectLazy<unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    FECT_LAZY in (value as Record<PropertyKey, unknown>)
+  );
+}
+
+/**
+ * Build a memoized lazy wrapper.
+ * The thunk runs at most once, then its result is cached.
+ */
+export function lazy<T>(thunk: () => T): FectLazy<T>;
+export function lazy<TArgs extends unknown[], TOut>(
+  handler: (...args: TArgs) => TOut,
+): (...args: LazyArgs<TArgs>) => FectLazy<TOut>;
+export function lazy<TArgs extends unknown[], TOut>(
+  handler: (...args: TArgs) => TOut,
+  ...args: LazyArgs<TArgs>
+): FectLazy<TOut>;
+export function lazy<T>(thunk: (...args: unknown[]) => T, ...args: unknown[]) {
+  if (args.length > 0) {
+    return buildLazy(() => thunk(...args));
+  }
+
+  if (thunk.length === 0) {
+    return buildLazy(() => thunk());
+  }
+
+  return (...laterArgs: unknown[]) => buildLazy(() => thunk(...laterArgs));
+}
+
+function buildLazy<T>(thunk: () => T): FectLazy<T> {
+  let hasValue = false;
+  let cachedValue: T;
+  const wrapper = {
+    [FECT_LAZY]: true,
+    force() {
+      if (!hasValue) {
+        cachedValue = thunk();
+        hasValue = true;
+      }
+      return cachedValue;
+    },
+    [Symbol.toPrimitive](hint: string) {
+      const value = forceFectLazy(wrapper.force() as unknown);
+      if (hint === "number") return Number(value);
+      if (hint === "string") return String(value);
+      return value as unknown as string | number | bigint | boolean | null;
+    },
+    valueOf() {
+      return forceFectLazy(wrapper.force() as unknown);
+    },
+    toString() {
+      return String(forceFectLazy(wrapper.force() as unknown));
+    },
+  };
+  return wrapper as FectLazy<T>;
+}
+
+/** Fully force nested `FectLazy` wrappers until a non-lazy value is reached. */
+export function forceFectLazy<T>(input: T | FectLazy<T>): T {
+  let current: unknown = input;
+  while (isFectLazy(current)) {
+    current = current.force();
+  }
+  return current as T;
+}
+
+export function mergeFxRuntime(a: FxShape, b: FxShape): FxShape {
   return { ...a, ...b };
 }
 
-type FnOptions<DRejected = PromiseRejected, DThrown = UnknownException> = {
+export type FnOptions<DRejected = PromiseRejected, DThrown = UnknownException> = {
   mapDefect?: (cause: unknown) => DRejected | DThrown;
   mapRejected?: (cause: unknown) => DRejected;
   mapThrown?: (cause: unknown) => DThrown;
 };
 
-function defaultMapRejected(cause: unknown): PromiseRejected {
+export function defaultMapRejected(cause: unknown): PromiseRejected {
   return { _tag: "PromiseRejected", cause };
 }
 
-function defaultMapThrown(cause: unknown): UnknownException {
+export function defaultMapThrown(cause: unknown): UnknownException {
   return { _tag: "UnknownException", cause };
 }
 
@@ -222,7 +311,7 @@ function defaultMapThrown(cause: unknown): UnknownException {
  * Convert a raw handler return value into a Payload (or PromiseLike<Payload>).
  * Used inside `.then()` chains where JS auto-flattens nested promises.
  */
-function settleToPayload(
+export function settleToPayload(
   raw: unknown,
 ): Payload<unknown, unknown> | PromiseLike<Payload<unknown, unknown>> {
   if (isFail(raw)) return { tag: "err", error: raw.error };
@@ -408,332 +497,4 @@ export function FectError<const Tag extends string>(
   };
 }
 
-// ===== fn =====
-
-/**
- * Wrap a handler so it participates in the infection pipeline.
- *
- * - Accepts plain values, `Fect` carriers, or `PromiseLike` values.
- * - Auto-short-circuits on error carriers.
- * - Chains through async payloads transparently.
- * - Merges effect metadata from input and output.
- * - `Fail` returns (via `SomeError.err(...)`) are converted to error carriers.
- */
-export function fn<
-  H extends () => unknown,
-  DRejected = PromiseRejected,
-  DThrown = UnknownException,
->(
-  handler: H,
-  options?: FnOptions<DRejected, DThrown>,
-): () => FnMaybeRawReturn<[], ReturnType<H>, DRejected | DThrown>;
-export function fn<
-  H extends (input: any) => unknown,
-  DRejected = PromiseRejected,
-  DThrown = UnknownException,
->(
-  handler: H,
-  options?: FnOptions<DRejected, DThrown>,
-): {
-  (input: Parameters<H>[0]): FnMaybeRawReturn<
-    Parameters<H>,
-    ReturnType<H>,
-    DRejected | DThrown
-  >;
-  <FxIn extends FxShape>(
-    input: Fect<Parameters<H>[0], FxIn>,
-  ): FnReturn<
-    Fect<Parameters<H>[0], FxIn>,
-    ReturnType<H>,
-    DRejected | DThrown
-  >;
-  (input: PromiseLike<Parameters<H>[0]>): FnReturn<
-    Fect<Parameters<H>[0], { async: true; result: DRejected | DThrown }>,
-    ReturnType<H>,
-    DRejected | DThrown
-  >;
-};
-export function fn<
-  H extends (a: any, b: any) => unknown,
-  DRejected = PromiseRejected,
-  DThrown = UnknownException,
->(
-  handler: H,
-  options?: FnOptions<DRejected, DThrown>,
-): {
-  (a: Parameters<H>[0], b: Parameters<H>[1]): FnMaybeRawReturn<
-    Parameters<H>,
-    ReturnType<H>,
-    DRejected | DThrown
-  >;
-  <
-    AIn extends
-      | Parameters<H>[0]
-      | Fect<Parameters<H>[0], FxShape>
-      | PromiseLike<Parameters<H>[0]>,
-    BIn extends
-      | Parameters<H>[1]
-      | Fect<Parameters<H>[1], FxShape>
-      | PromiseLike<Parameters<H>[1]>,
-  >(
-    a: AIn,
-    b: BIn,
-  ): FnReturn<
-    Fect<unknown, MergeInputFx2<AIn, BIn, DRejected | DThrown>>,
-    ReturnType<H>,
-    DRejected | DThrown
-  >;
-};
-export function fn<
-  H extends (a: any, b: any, c: any) => unknown,
-  DRejected = PromiseRejected,
-  DThrown = UnknownException,
->(
-  handler: H,
-  options?: FnOptions<DRejected, DThrown>,
-): {
-  (a: Parameters<H>[0], b: Parameters<H>[1], c: Parameters<H>[2]): FnMaybeRawReturn<
-    Parameters<H>,
-    ReturnType<H>,
-    DRejected | DThrown
-  >;
-  <
-    AIn extends
-      | Parameters<H>[0]
-      | Fect<Parameters<H>[0], FxShape>
-      | PromiseLike<Parameters<H>[0]>,
-    BIn extends
-      | Parameters<H>[1]
-      | Fect<Parameters<H>[1], FxShape>
-      | PromiseLike<Parameters<H>[1]>,
-    CIn extends
-      | Parameters<H>[2]
-      | Fect<Parameters<H>[2], FxShape>
-      | PromiseLike<Parameters<H>[2]>,
-  >(
-    a: AIn,
-    b: BIn,
-    c: CIn,
-  ): FnReturn<
-    Fect<unknown, MergeInputFx3<AIn, BIn, CIn, DRejected | DThrown>>,
-    ReturnType<H>,
-    DRejected | DThrown
-  >;
-};
-export function fn<
-  H extends (a: any, b: any, c: any, d: any) => unknown,
-  DRejected = PromiseRejected,
-  DThrown = UnknownException,
->(
-  handler: H,
-  options?: FnOptions<DRejected, DThrown>,
-): {
-  (
-    a: Parameters<H>[0],
-    b: Parameters<H>[1],
-    c: Parameters<H>[2],
-    d: Parameters<H>[3],
-  ): FnMaybeRawReturn<
-    Parameters<H>,
-    ReturnType<H>,
-    DRejected | DThrown
-  >;
-  <
-    AIn extends
-      | Parameters<H>[0]
-      | Fect<Parameters<H>[0], FxShape>
-      | PromiseLike<Parameters<H>[0]>,
-    BIn extends
-      | Parameters<H>[1]
-      | Fect<Parameters<H>[1], FxShape>
-      | PromiseLike<Parameters<H>[1]>,
-    CIn extends
-      | Parameters<H>[2]
-      | Fect<Parameters<H>[2], FxShape>
-      | PromiseLike<Parameters<H>[2]>,
-    DIn extends
-      | Parameters<H>[3]
-      | Fect<Parameters<H>[3], FxShape>
-      | PromiseLike<Parameters<H>[3]>,
-  >(
-    a: AIn,
-    b: BIn,
-    c: CIn,
-    d: DIn,
-  ): FnReturn<
-    Fect<unknown, MergeInputFx4<AIn, BIn, CIn, DIn, DRejected | DThrown>>,
-    ReturnType<H>,
-    DRejected | DThrown
-  >;
-};
-export function fn<
-  H extends (a: any, b: any, c: any, d: any, ...rest: any[]) => unknown,
-  DRejected = PromiseRejected,
-  DThrown = UnknownException,
->(
-  handler: H,
-  options?: FnOptions<DRejected, DThrown>,
-): {
-  (...args: Parameters<H>): FnMaybeRawReturn<
-    Parameters<H>,
-    ReturnType<H>,
-    DRejected | DThrown
-  >;
-  (...args: unknown[]): FnReturn<
-    Fect<unknown, FxShape>,
-    ReturnType<H>,
-    DRejected | DThrown
-  >;
-};
-export function fn(
-  handler: (...args: unknown[]) => unknown,
-  options?: FnOptions,
-) {
-  const mapRejected = options?.mapRejected ?? options?.mapDefect ??
-    defaultMapRejected;
-  const mapThrown = options?.mapThrown ?? options?.mapDefect ??
-    defaultMapThrown;
-
-  function toCoreInput(input: unknown): Fect<unknown, FxShape> {
-    if (isFect(input)) return input;
-    if (isPromiseLike(input)) {
-      return makeCoreAsync(
-        Promise.resolve(input).then(
-          (v) => ({ tag: "ok" as const, value: v }),
-          (cause) => ({ tag: "err" as const, error: mapRejected(cause) }),
-        ),
-        { async: true, result: true },
-      );
-    }
-    return ok(input) as unknown as Fect<unknown, FxShape>;
-  }
-
-  // ── Any-arg handler ──
-  return (...inputs: unknown[]) => {
-    const infectedCall = inputs.some((input) =>
-      isFect(input) || isPromiseLike(input)
-    );
-
-    // Plain call path: keep plain outputs plain.
-    if (!infectedCall) {
-      const outRaw = handler(...inputs);
-
-      if (isPromiseLike(outRaw)) {
-        const asyncPayload = Promise.resolve(outRaw).then(
-          settleToPayload,
-          (cause) => ({ tag: "err" as const, error: mapRejected(cause) }),
-        );
-        return makeCoreAsync(
-          asyncPayload as Promise<Payload<unknown, unknown>>,
-          { async: true, result: true },
-        );
-      }
-
-      if (isFail(outRaw)) return err(outRaw.error);
-      return outRaw;
-    }
-
-    const inCores = inputs.map(toCoreInput);
-    const mergedInFx = inCores.reduce<FxShape>(
-      (acc, core) => mergeFxRuntime(acc, core.fx),
-      {},
-    );
-    const inPayloads = inCores.map((core) => core.payload);
-
-    // Async infected input(s): resolve all payloads first.
-    if (inPayloads.some(isPromiseLike)) {
-      const asyncPayload = Promise.all(
-        inPayloads.map((payload) =>
-          Promise.resolve(payload).then(
-            (resolved) => resolved as Payload<unknown, unknown>,
-            (cause) =>
-              ({ tag: "err" as const, error: mapRejected(cause) }) as Payload<
-                unknown,
-                unknown
-              >,
-          )
-        ),
-      ).then((resolvedInputs) => {
-        const firstErr = resolvedInputs.find((p) => p.tag === "err");
-        if (firstErr) return firstErr;
-
-        const values = resolvedInputs.map((p) =>
-          (p as { value: unknown }).value
-        );
-        let outRaw: unknown;
-        try {
-          outRaw = handler(...values);
-        } catch (cause) {
-          return { tag: "err" as const, error: mapThrown(cause) };
-        }
-
-        if (isPromiseLike(outRaw)) {
-          return Promise.resolve(outRaw).then(
-            settleToPayload,
-            (cause) => ({ tag: "err" as const, error: mapRejected(cause) }),
-          );
-        }
-        return settleToPayload(outRaw);
-      });
-
-      return makeCoreAsync(
-        asyncPayload as Promise<Payload<unknown, unknown>>,
-        mergedInFx,
-      );
-    }
-
-    // Fully sync infected input(s)
-    const firstErr = (inPayloads as Payload<unknown, unknown>[]).find((p) =>
-      p.tag === "err"
-    );
-    if (firstErr) {
-      // deno-lint-ignore no-explicit-any
-      return makeCore(firstErr as any, mergedInFx);
-    }
-
-    const values = (inPayloads as Array<{ tag: "ok"; value: unknown }>).map((
-      p,
-    ) => p.value);
-    let outRaw: unknown;
-    try {
-      outRaw = handler(...values);
-    } catch (cause) {
-      // deno-lint-ignore no-explicit-any
-      return makeCore(
-        { tag: "err", error: mapThrown(cause) } as any,
-        mergeFxRuntime(mergedInFx, { result: true }),
-      );
-    }
-
-    if (isPromiseLike(outRaw)) {
-      const asyncPayload = Promise.resolve(outRaw).then(
-        settleToPayload,
-        (cause) => ({ tag: "err" as const, error: mapRejected(cause) }),
-      );
-      return makeCoreAsync(
-        asyncPayload as Promise<Payload<unknown, unknown>>,
-        mergeFxRuntime(mergedInFx, { async: true, result: true }),
-      );
-    }
-
-    if (isFail(outRaw)) {
-      const outCore = err(outRaw.error);
-      // deno-lint-ignore no-explicit-any
-      return makeCore(
-        outCore.payload as any,
-        mergeFxRuntime(mergedInFx, outCore.fx),
-      );
-    }
-
-    if (isFect(outRaw)) {
-      // deno-lint-ignore no-explicit-any
-      return makeCore(
-        outRaw.payload as any,
-        mergeFxRuntime(mergedInFx, outRaw.fx),
-      );
-    }
-
-    // deno-lint-ignore no-explicit-any
-    return makeCore({ tag: "ok", value: outRaw } as any, mergedInFx);
-  };
-}
+export { fn };

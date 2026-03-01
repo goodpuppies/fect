@@ -33,3 +33,9 @@ Deno.test("Fect.try rejects for async infected error carrier", async () => {
     await Fect.try(out);
   }, "async boom");
 });
+
+Deno.test("Fect.try forces lazy carrier input", () => {
+  const lazyCarrier = Fect.lazy(() => ok(7));
+  const value = Fect.try(lazyCarrier);
+  assertEquals(value, 7);
+});

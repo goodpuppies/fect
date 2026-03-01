@@ -45,6 +45,101 @@ Deno.test("fn supports multiple infected args", () => {
   assertEquals(value, 3);
 });
 
+Deno.test("Fect.lazy defers execution until match boundary", () => {
+  let runs = 0;
+  const source = Fect.lazy(() => {
+    runs += 1;
+    return 41;
+  });
+
+  const step = fn((n: number) => n + 1);
+  const out = step(source);
+
+  assertEquals(runs, 0);
+
+  const value1 = match(out).with({
+    42: (v) => v,
+  });
+  assertEquals(value1, 42);
+  assertEquals(runs, 1);
+
+  const value2 = match(out).with({
+    42: (v) => v,
+  });
+  assertEquals(value2, 42);
+  assertEquals(runs, 1);
+});
+
+Deno.test("lazy infection propagates through fn chain", () => {
+  let runs = 0;
+  const source = Fect.lazy(() => {
+    runs += 1;
+    return 3;
+  });
+
+  const mul2 = fn((n: number) => n * 2);
+  const add5 = fn((n: number) => n + 5);
+  const out = add5(mul2(source));
+
+  assertEquals(runs, 0);
+
+  const result = match(out).with({
+    11: (v) => v,
+  });
+  assertEquals(result, 11);
+  assertEquals(runs, 1);
+});
+
+Deno.test("Fect.lazy supports function shape with arguments", () => {
+  let runs = 0;
+  const lazyAdd = Fect.lazy((a: number, b: number) => {
+    runs += 1;
+    return a + b;
+  });
+
+  const out = lazyAdd(2, 3);
+  assertEquals(runs, 0);
+
+  const value = match(out).with({
+    5: (v) => v,
+  });
+  assertEquals(value, 5);
+  assertEquals(runs, 1);
+});
+
+Deno.test("Fect.lazy supports eager argument capture shape", () => {
+  let runs = 0;
+  const out = Fect.lazy((a: number, b: number) => {
+    runs += 1;
+    return a + b;
+  }, 7, 8);
+
+  assertEquals(runs, 0);
+
+  const value = match(out).with({
+    15: (v) => v,
+  });
+  assertEquals(value, 15);
+  assertEquals(runs, 1);
+});
+
+Deno.test("Fect.lazy allows lazy-wrapped args when handler ignores them", () => {
+  let forced = 0;
+  const first = Fect.lazy((a: number, _b: number) => a);
+  const lazyB = Fect.lazy(() => {
+    forced += 1;
+    return 999;
+  });
+
+  const out = first(10, lazyB);
+  const value = match(out).with({
+    10: (v) => v,
+  });
+
+  assertEquals(value, 10);
+  assertEquals(forced, 0);
+});
+
 Deno.test("fn short-circuits on error carrier input", () => {
   let executed = false;
   const step = fn((n: number) => {
@@ -250,4 +345,20 @@ Deno.test("Fect facade supports fn/ok/match flow", () => {
   });
 
   assertEquals(discharged, 42);
+});
+
+Deno.test("Fect.try does not force unused lazy arg in fn handler", () => {
+  let runs = 0;
+  const first = Fect.fn((a: number, _b: number) => a);
+  const hang = fn((): number => {
+    runs += 1;
+    return 999;
+  });
+  const lazyhang = Fect.lazy(hang);
+
+  const out = first(10, lazyhang);
+  const value = Fect.try(out);
+
+  assertEquals(value, 10);
+  assertEquals(runs, 0);
 });
