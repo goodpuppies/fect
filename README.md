@@ -2,23 +2,30 @@
 
 Simple TypeScript library for effects and pattern matching.
 
-Fect reduces function coloring — the hard boundary between async/sync,
-effectful/pure, fallible/infallible code — without a DSL, generators, or pipe
+Fect reduces function coloring, the hard boundary between async/sync,
+effectful/pure, fallible/infallible code, without a DSL, generators, or pipe
 chains. Wrap your functions with `Fect.fn`, compose them normally, and unwrap at
 the boundary.
 
 ```ts
 import { Fect } from "@goodpuppies/fect";
 
+interface User {
+  login: string;
+  name?: string;
+}
+
 const fetchUser = Fect.fn(async (name: string) => {
-  const res = await fetch(`https://api.github.com/users/${name}`);
-  return (await res.json()) as User;
+  return {
+    login: name,
+    name: name.toUpperCase(),
+  } as User;
 });
 
 const getDisplayName = Fect.fn((user: User) => user.name ?? user.login);
 
 // getDisplayName expects a User, but gets the async Fect from fetchUser.
-// It just works — no await, no unwrap, no flatMap.
+// It just works, no await, no unwrap, no flatMap.
 const name = getDisplayName(fetchUser("denoland"));
 
 // Unwrap once at the boundary.
@@ -26,7 +33,7 @@ console.log(await Fect.try(name));
 ```
 
 `getDisplayName` is a plain sync function. It doesn't know or care that its
-input is async. Fect handles that automatically — async propagates through the
+input is async. Fect handles that automatically, async propagates through the
 chain and you discharge it once, when you need the concrete value.
 
 ## How It Works
@@ -37,11 +44,15 @@ automatically. When you pass a plain value, it behaves like a normal function
 call.
 
 ```ts
-const double = Fect.fn((x: number) => x * 2);
+import { Fect } from "@goodpuppies/fect";
 
-double(5); // plain 10 — not wrapped
-double(Fect.ok(5)); // Fect<10> — stays in Fect-land
-double(someAsyncFect); // async Fect<10> — async propagates
+const double = Fect.fn((x: number) => x * 2);
+const load = Fect.fn(async () => 5);
+const someAsyncFect = load();
+
+double(5); // plain 10, not wrapped
+double(Fect.ok(5)); // Fect<10>, stays in Fect-land
+double(someAsyncFect); // async Fect<10>, async propagates
 ```
 
 If you've used promises, you've already seen the core idea. In JavaScript,
@@ -51,7 +62,7 @@ Fect does the same thing: when you pass a wrapped value to a Fect function, it
 flattens. You never get `Fect<Fect<number>>`. The inner value is always unwrapped 
 before your handler runs, whether it's async, an error, or both.
 
-Rust's `?` operator is another take on this — it unwraps `Result` at each call
+Rust's `?` operator is another take on this, it unwraps `Result` at each call
 site. But `?` is still function coloring: you write it explicitly, and it
 changes the function's return type. Fect has no operator. You just call
 functions.
@@ -68,6 +79,8 @@ effectful.
 Declare errors in one line:
 
 ```ts
+import { Fect } from "@goodpuppies/fect";
+
 class NotFound extends Fect.error("NotFound")<{ id: string }>() {}
 class Unauthorized extends Fect.error("Unauthorized")() {}
 ```
@@ -75,6 +88,13 @@ class Unauthorized extends Fect.error("Unauthorized")() {}
 Return errors from `Fect.fn` handlers with `.err()`:
 
 ```ts
+import { Fect } from "@goodpuppies/fect";
+
+type User = { id: string; name: string };
+
+class NotFound extends Fect.error("NotFound")<{ id: string }>() {}
+class Unauthorized extends Fect.error("Unauthorized")() {}
+
 const loadUser = Fect.fn(async (id: string) => {
   const res = await fetch(`/api/users/${id}`);
   if (res.status === 404) return NotFound.err({ id });
@@ -83,7 +103,7 @@ const loadUser = Fect.fn(async (id: string) => {
 });
 ```
 
-Errors short-circuit — downstream steps don't run if an upstream step failed.
+Errors short-circuit, downstream steps don't run if an upstream step failed.
 
 ### Defects
 
@@ -91,15 +111,20 @@ Unhandled throws and rejected promises are caught automatically and tagged as
 `UnknownException` or `PromiseRejected`. You can customize this:
 
 ```ts
+import { Fect } from "@goodpuppies/fect";
+
+class MyError extends Error {}
+const handler = (_value: string) => "ok";
+
 Fect.fn(handler, {
-  mapThrown: (cause) => new MyError(cause),
-  mapRejected: (cause) => new MyError(cause),
+  mapThrown: (cause) => new MyError(String(cause)),
+  mapRejected: (cause) => new MyError(String(cause)),
 });
 ```
 
 ## Unwrapping
 
-At the boundary of your program — where you need a concrete value — you have two
+At the boundary of your program, where you need a concrete value, you have two
 options.
 
 ### Pattern Matching
@@ -108,13 +133,24 @@ options.
 plain values:
 
 ```ts
-const message = await Fect.match(result).with({
+import { Fect } from "@goodpuppies/fect";
+
+class NotFound extends Fect.error("NotFound")<{ id: string }>() {}
+class Unauthorized extends Fect.error("Unauthorized")() {}
+
+const loadUser = Fect.fn((id: string) => {
+  if (id === "missing") return NotFound.err({ id });
+  if (id === "blocked") return Unauthorized.err();
+  return { id, name: "Ada" };
+});
+
+const result = loadUser(Fect.ok("42"));
+
+const message = Fect.match(result).with({
   ok: (user) => `Hello, ${user.name}`,
   err: {
     NotFound: (e) => `No user ${e.id}`,
     Unauthorized: () => "Access denied",
-    PromiseRejected: () => "Network error",
-    UnknownException: (e) => `Bug: ${e.cause}`,
   },
 });
 ```
@@ -125,10 +161,23 @@ If you want to handle only some tagged errors and keep the rest infected, use
 `Fect.partial`:
 
 ```ts
+import { Fect } from "@goodpuppies/fect";
+
+class InputEmpty extends Fect.error("InputEmpty")() {}
+type User = { login: string; repos_url: string };
+
+const fetchUser = Fect.fn((name: string) => {
+  if (name.trim().length === 0) return InputEmpty.err();
+  return { login: name, repos_url: `/api/repos/${name}` };
+});
+
+const fetchRepos = Fect.fn((user: User) => [user.repos_url]);
+const user = fetchUser("");
+
 const userWithoutInputError = Fect.partial(user).with({
   err: {
     InputEmpty: () => {
-      throw new Error("input username is empty");
+      return { login: "guest", repos_url: "/api/repos/guest" };
     },
   },
 });
@@ -140,6 +189,10 @@ const repos = fetchRepos(userWithoutInputError);
 For non-tagged errors, pass a function:
 
 ```ts
+import { Fect } from "@goodpuppies/fect";
+
+const result = Fect.err("boom");
+
 Fect.match(result).with({
   ok: (v) => v,
   err: (e) => `failed: ${e}`,
@@ -149,6 +202,8 @@ Fect.match(result).with({
 `match` also works on plain values:
 
 ```ts
+import { Fect } from "@goodpuppies/fect";
+
 type UserType = "admin" | "user";
 
 const login = Fect.fn((userType: UserType) => {
@@ -164,17 +219,25 @@ const login = Fect.fn((userType: UserType) => {
 `Fect.try` extracts the value directly, throwing on error:
 
 ```ts
-const user = Fect.try(syncResult); // throws if err
-const user = await Fect.try(asyncResult); // rejects if err
+import { Fect } from "@goodpuppies/fect";
+
+const syncResult = Fect.ok({ login: "sync-user" });
+const asyncResult = Fect.fn(async () => ({ login: "async-user" }))();
+
+const syncUser = Fect.try(syncResult); // throws if err
+const asyncUser = await Fect.try(asyncResult); // rejects if err
 ```
 
 ## RemoteValue
 
-One-shot async rendezvous for values that arrive later — from another actor, a
+One-shot async rendezvous for values that arrive later, from another actor, a
 WebSocket, a callback:
 
 ```ts
+import { Fect } from "@goodpuppies/fect";
+
 const rv = Fect.remoteValue<number>({ timeoutMs: 5000 });
+const double = Fect.fn((n: number) => n * 2);
 
 // Fill from anywhere:
 rv.fill(42);
@@ -221,7 +284,7 @@ const summarize = Fect.fn((
     .map((r) => `${r.name} (${r.stargazers_count}★)`)
 );
 
-// Compose — no intermediate awaits, no unwrapping between steps.
+// Compose, no intermediate awaits, no unwrapping between steps.
 const parsed = parseInput("denoland");
 const user = fetchUser(parsed);
 const repos = fetchRepos(user);

@@ -96,6 +96,54 @@ Deno.test("partial handles selected tagged errors and keeps others", () => {
   assertEquals(message, "ok:guest");
 });
 
+Deno.test("partial keeps unhandled errors infected", () => {
+  const step = fn((s: string) => {
+    if (s === "") return NotFound.err({ resource: "input" });
+    if (s === "admin") return Unauthorized.err({ userId: s });
+    return s.toUpperCase();
+  });
+
+  const out = Fect.partial(step("")).with({
+    err: {
+      Unauthorized: () => "fallback",
+    },
+  });
+
+  const message = match(out).with({
+    ok: (value) => `ok:${value}`,
+    err: {
+      NotFound: (e) => `missing:${e.resource}`,
+    },
+  });
+
+  assertEquals(message, "missing:input");
+});
+
+Deno.test("partial works with async carriers and downstream sync composition", async () => {
+  const load = fn(async (name: string) => {
+    if (name === "") return NotFound.err({ resource: "name" });
+    return name;
+  });
+  const upper = fn((name: string) => name.toUpperCase());
+
+  const handled = Fect.partial(load("")).with({
+    err: {
+      NotFound: () => "guest",
+    },
+  });
+  const out = upper(handled);
+
+  const message = await match(out).with({
+    ok: (value) => `ok:${value}`,
+    err: {
+      PromiseRejected: () => "promise-rejected",
+      UnknownException: () => "unknown-exception",
+    },
+  });
+
+  assertEquals(message, "ok:GUEST");
+});
+
 // ===== Type-level exhaustiveness checks =====
 if (false) {
   class A extends FectError("A")<{ value: number }>() {}

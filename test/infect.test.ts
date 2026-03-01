@@ -222,6 +222,23 @@ Deno.test("fn chains async input with async handler", async () => {
   assertEquals(value, 20);
 });
 
+Deno.test("sync steps compose over async carriers without manual await", async () => {
+  const loadUser = fn(async (id: number) => `user-${id}`);
+  const upper = fn((value: string) => value.toUpperCase());
+  const decorate = fn((value: string) => `[${value}]`);
+
+  const out = decorate(upper(loadUser(7)));
+  const value = await match(out).with({
+    ok: (v) => v,
+    err: {
+      PromiseRejected: () => "promise-rejected",
+      UnknownException: () => "unknown-exception",
+    },
+  });
+
+  assertEquals(value, "[USER-7]");
+});
+
 Deno.test("fn short-circuits async error through pipeline", async () => {
   class Boom extends FectError("Boom")() {}
 
