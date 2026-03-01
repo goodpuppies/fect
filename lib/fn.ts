@@ -18,6 +18,14 @@ import {
   type MergeInputFx2,
   type MergeInputFx3,
   type MergeInputFx4,
+  type MergeInputFx5,
+  type MergeInputFx6,
+  type MergeInputFx7,
+  type MergeInputFx8,
+  type MergeInputFx9,
+  type MergeInputFx10,
+  type MergeInputFx11,
+  type MergeInputFx12,
   mergeFxRuntime,
   lazy,
   ok,
@@ -35,6 +43,12 @@ import {
  * - Merges effect metadata from input and output.
  * - `Fail` returns (via `SomeError.err(...)`) are converted to error carriers.
  */
+type InfectedArg<T> =
+  | T
+  | Fect<T, FxShape>
+  | FectLazy<T>
+  | PromiseLike<T>;
+
 export function fn<
   H extends () => unknown,
   DRejected = PromiseRejected,
@@ -190,8 +204,792 @@ export function fn<
     DRejected | DThrown
   >;
 };
+// @generated-start fn-overloads-5-12
 export function fn<
-  H extends (a: any, b: any, c: any, d: any, ...rest: any[]) => unknown,
+  H extends (a: any, b: any, c: any, d: any, e: any) => unknown,
+  DRejected = PromiseRejected,
+  DThrown = UnknownException,
+>(
+  handler: H,
+  options?: FnOptions<DRejected, DThrown>,
+): {
+  (
+    a: Parameters<H>[0],
+    b: Parameters<H>[1],
+    c: Parameters<H>[2],
+    d: Parameters<H>[3],
+    e: Parameters<H>[4],
+  ): FnMaybeRawReturn<Parameters<H>, ReturnType<H>, DRejected | DThrown>;
+  <
+    AIn extends InfectedArg<Parameters<H>[0]>,
+    BIn extends InfectedArg<Parameters<H>[1]>,
+    CIn extends InfectedArg<Parameters<H>[2]>,
+    DArgIn extends InfectedArg<Parameters<H>[3]>,
+    EIn extends InfectedArg<Parameters<H>[4]>,
+  >(
+    a: AIn,
+    b: BIn,
+    c: CIn,
+    d: DArgIn,
+    e: EIn,
+  ): FnReturn<
+    Fect<unknown, MergeInputFx5<AIn, BIn, CIn, DArgIn, EIn, DRejected | DThrown>>,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+};
+export function fn<
+  H extends (a: any, b: any, c: any, d: any, e: any, f: any) => unknown,
+  DRejected = PromiseRejected,
+  DThrown = UnknownException,
+>(
+  handler: H,
+  options?: FnOptions<DRejected, DThrown>,
+): {
+  (
+    a: Parameters<H>[0],
+    b: Parameters<H>[1],
+    c: Parameters<H>[2],
+    d: Parameters<H>[3],
+    e: Parameters<H>[4],
+    f: Parameters<H>[5],
+  ): FnMaybeRawReturn<Parameters<H>, ReturnType<H>, DRejected | DThrown>;
+  <
+    AIn extends InfectedArg<Parameters<H>[0]>,
+    BIn extends InfectedArg<Parameters<H>[1]>,
+    CIn extends InfectedArg<Parameters<H>[2]>,
+    DArgIn extends InfectedArg<Parameters<H>[3]>,
+    EIn extends InfectedArg<Parameters<H>[4]>,
+    FIn extends InfectedArg<Parameters<H>[5]>,
+  >(
+    a: AIn,
+    b: BIn,
+    c: CIn,
+    d: DArgIn,
+    e: EIn,
+    f: FIn,
+  ): FnReturn<
+    Fect<unknown, MergeInputFx6<AIn, BIn, CIn, DArgIn, EIn, FIn, DRejected | DThrown>>,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+};
+export function fn<
+  H extends (a: any, b: any, c: any, d: any, e: any, f: any, g: any) => unknown,
+  DRejected = PromiseRejected,
+  DThrown = UnknownException,
+>(
+  handler: H,
+  options?: FnOptions<DRejected, DThrown>,
+): {
+  (
+    a: Parameters<H>[0],
+    b: Parameters<H>[1],
+    c: Parameters<H>[2],
+    d: Parameters<H>[3],
+    e: Parameters<H>[4],
+    f: Parameters<H>[5],
+    g: Parameters<H>[6],
+  ): FnMaybeRawReturn<Parameters<H>, ReturnType<H>, DRejected | DThrown>;
+  <
+    AIn extends InfectedArg<Parameters<H>[0]>,
+    BIn extends InfectedArg<Parameters<H>[1]>,
+    CIn extends InfectedArg<Parameters<H>[2]>,
+    DArgIn extends InfectedArg<Parameters<H>[3]>,
+    EIn extends InfectedArg<Parameters<H>[4]>,
+    FIn extends InfectedArg<Parameters<H>[5]>,
+    GIn extends InfectedArg<Parameters<H>[6]>,
+  >(
+    a: AIn,
+    b: BIn,
+    c: CIn,
+    d: DArgIn,
+    e: EIn,
+    f: FIn,
+    g: GIn,
+  ): FnReturn<
+    Fect<unknown, MergeInputFx7<AIn, BIn, CIn, DArgIn, EIn, FIn, GIn, DRejected | DThrown>>,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+};
+export function fn<
+  H extends (a: any, b: any, c: any, d: any, e: any, f: any, g: any, h: any) => unknown,
+  DRejected = PromiseRejected,
+  DThrown = UnknownException,
+>(
+  handler: H,
+  options?: FnOptions<DRejected, DThrown>,
+): {
+  (
+    a: Parameters<H>[0],
+    b: Parameters<H>[1],
+    c: Parameters<H>[2],
+    d: Parameters<H>[3],
+    e: Parameters<H>[4],
+    f: Parameters<H>[5],
+    g: Parameters<H>[6],
+    h: Parameters<H>[7],
+  ): FnMaybeRawReturn<Parameters<H>, ReturnType<H>, DRejected | DThrown>;
+  <
+    AIn extends InfectedArg<Parameters<H>[0]>,
+    BIn extends InfectedArg<Parameters<H>[1]>,
+    CIn extends InfectedArg<Parameters<H>[2]>,
+    DArgIn extends InfectedArg<Parameters<H>[3]>,
+    EIn extends InfectedArg<Parameters<H>[4]>,
+    FIn extends InfectedArg<Parameters<H>[5]>,
+    GIn extends InfectedArg<Parameters<H>[6]>,
+    HIn extends InfectedArg<Parameters<H>[7]>,
+  >(
+    a: AIn,
+    b: BIn,
+    c: CIn,
+    d: DArgIn,
+    e: EIn,
+    f: FIn,
+    g: GIn,
+    h: HIn,
+  ): FnReturn<
+    Fect<unknown, MergeInputFx8<AIn, BIn, CIn, DArgIn, EIn, FIn, GIn, HIn, DRejected | DThrown>>,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+};
+export function fn<
+  H extends (a: any, b: any, c: any, d: any, e: any, f: any, g: any, h: any, i: any) => unknown,
+  DRejected = PromiseRejected,
+  DThrown = UnknownException,
+>(
+  handler: H,
+  options?: FnOptions<DRejected, DThrown>,
+): {
+  (
+    a: Parameters<H>[0],
+    b: Parameters<H>[1],
+    c: Parameters<H>[2],
+    d: Parameters<H>[3],
+    e: Parameters<H>[4],
+    f: Parameters<H>[5],
+    g: Parameters<H>[6],
+    h: Parameters<H>[7],
+    i: Parameters<H>[8],
+  ): FnMaybeRawReturn<Parameters<H>, ReturnType<H>, DRejected | DThrown>;
+  <
+    AIn extends InfectedArg<Parameters<H>[0]>,
+    BIn extends InfectedArg<Parameters<H>[1]>,
+    CIn extends InfectedArg<Parameters<H>[2]>,
+    DArgIn extends InfectedArg<Parameters<H>[3]>,
+    EIn extends InfectedArg<Parameters<H>[4]>,
+    FIn extends InfectedArg<Parameters<H>[5]>,
+    GIn extends InfectedArg<Parameters<H>[6]>,
+    HIn extends InfectedArg<Parameters<H>[7]>,
+    IIn extends InfectedArg<Parameters<H>[8]>,
+  >(
+    a: AIn,
+    b: BIn,
+    c: CIn,
+    d: DArgIn,
+    e: EIn,
+    f: FIn,
+    g: GIn,
+    h: HIn,
+    i: IIn,
+  ): FnReturn<
+    Fect<unknown, MergeInputFx9<AIn, BIn, CIn, DArgIn, EIn, FIn, GIn, HIn, IIn, DRejected | DThrown>>,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+};
+export function fn<
+  H extends (a: any, b: any, c: any, d: any, e: any, f: any, g: any, h: any, i: any, j: any) => unknown,
+  DRejected = PromiseRejected,
+  DThrown = UnknownException,
+>(
+  handler: H,
+  options?: FnOptions<DRejected, DThrown>,
+): {
+  (
+    a: Parameters<H>[0],
+    b: Parameters<H>[1],
+    c: Parameters<H>[2],
+    d: Parameters<H>[3],
+    e: Parameters<H>[4],
+    f: Parameters<H>[5],
+    g: Parameters<H>[6],
+    h: Parameters<H>[7],
+    i: Parameters<H>[8],
+    j: Parameters<H>[9],
+  ): FnMaybeRawReturn<Parameters<H>, ReturnType<H>, DRejected | DThrown>;
+  <
+    AIn extends InfectedArg<Parameters<H>[0]>,
+    BIn extends InfectedArg<Parameters<H>[1]>,
+    CIn extends InfectedArg<Parameters<H>[2]>,
+    DArgIn extends InfectedArg<Parameters<H>[3]>,
+    EIn extends InfectedArg<Parameters<H>[4]>,
+    FIn extends InfectedArg<Parameters<H>[5]>,
+    GIn extends InfectedArg<Parameters<H>[6]>,
+    HIn extends InfectedArg<Parameters<H>[7]>,
+    IIn extends InfectedArg<Parameters<H>[8]>,
+    JIn extends InfectedArg<Parameters<H>[9]>,
+  >(
+    a: AIn,
+    b: BIn,
+    c: CIn,
+    d: DArgIn,
+    e: EIn,
+    f: FIn,
+    g: GIn,
+    h: HIn,
+    i: IIn,
+    j: JIn,
+  ): FnReturn<
+    Fect<unknown, MergeInputFx10<AIn, BIn, CIn, DArgIn, EIn, FIn, GIn, HIn, IIn, JIn, DRejected | DThrown>>,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+};
+export function fn<
+  H extends (a: any, b: any, c: any, d: any, e: any, f: any, g: any, h: any, i: any, j: any, k: any) => unknown,
+  DRejected = PromiseRejected,
+  DThrown = UnknownException,
+>(
+  handler: H,
+  options?: FnOptions<DRejected, DThrown>,
+): {
+  (
+    a: Parameters<H>[0],
+    b: Parameters<H>[1],
+    c: Parameters<H>[2],
+    d: Parameters<H>[3],
+    e: Parameters<H>[4],
+    f: Parameters<H>[5],
+    g: Parameters<H>[6],
+    h: Parameters<H>[7],
+    i: Parameters<H>[8],
+    j: Parameters<H>[9],
+    k: Parameters<H>[10],
+  ): FnMaybeRawReturn<Parameters<H>, ReturnType<H>, DRejected | DThrown>;
+  <
+    AIn extends InfectedArg<Parameters<H>[0]>,
+    BIn extends InfectedArg<Parameters<H>[1]>,
+    CIn extends InfectedArg<Parameters<H>[2]>,
+    DArgIn extends InfectedArg<Parameters<H>[3]>,
+    EIn extends InfectedArg<Parameters<H>[4]>,
+    FIn extends InfectedArg<Parameters<H>[5]>,
+    GIn extends InfectedArg<Parameters<H>[6]>,
+    HIn extends InfectedArg<Parameters<H>[7]>,
+    IIn extends InfectedArg<Parameters<H>[8]>,
+    JIn extends InfectedArg<Parameters<H>[9]>,
+    KIn extends InfectedArg<Parameters<H>[10]>,
+  >(
+    a: AIn,
+    b: BIn,
+    c: CIn,
+    d: DArgIn,
+    e: EIn,
+    f: FIn,
+    g: GIn,
+    h: HIn,
+    i: IIn,
+    j: JIn,
+    k: KIn,
+  ): FnReturn<
+    Fect<unknown, MergeInputFx11<AIn, BIn, CIn, DArgIn, EIn, FIn, GIn, HIn, IIn, JIn, KIn, DRejected | DThrown>>,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+};
+export function fn<
+  H extends (a: any, b: any, c: any, d: any, e: any, f: any, g: any, h: any, i: any, j: any, k: any, l: any) => unknown,
+  DRejected = PromiseRejected,
+  DThrown = UnknownException,
+>(
+  handler: H,
+  options?: FnOptions<DRejected, DThrown>,
+): {
+  (
+    a: Parameters<H>[0],
+    b: Parameters<H>[1],
+    c: Parameters<H>[2],
+    d: Parameters<H>[3],
+    e: Parameters<H>[4],
+    f: Parameters<H>[5],
+    g: Parameters<H>[6],
+    h: Parameters<H>[7],
+    i: Parameters<H>[8],
+    j: Parameters<H>[9],
+    k: Parameters<H>[10],
+    l: Parameters<H>[11],
+  ): FnMaybeRawReturn<Parameters<H>, ReturnType<H>, DRejected | DThrown>;
+  <
+    AIn extends InfectedArg<Parameters<H>[0]>,
+    BIn extends InfectedArg<Parameters<H>[1]>,
+    CIn extends InfectedArg<Parameters<H>[2]>,
+    DArgIn extends InfectedArg<Parameters<H>[3]>,
+    EIn extends InfectedArg<Parameters<H>[4]>,
+    FIn extends InfectedArg<Parameters<H>[5]>,
+    GIn extends InfectedArg<Parameters<H>[6]>,
+    HIn extends InfectedArg<Parameters<H>[7]>,
+    IIn extends InfectedArg<Parameters<H>[8]>,
+    JIn extends InfectedArg<Parameters<H>[9]>,
+    KIn extends InfectedArg<Parameters<H>[10]>,
+    LIn extends InfectedArg<Parameters<H>[11]>,
+  >(
+    a: AIn,
+    b: BIn,
+    c: CIn,
+    d: DArgIn,
+    e: EIn,
+    f: FIn,
+    g: GIn,
+    h: HIn,
+    i: IIn,
+    j: JIn,
+    k: KIn,
+    l: LIn,
+  ): FnReturn<
+    Fect<unknown, MergeInputFx12<AIn, BIn, CIn, DArgIn, EIn, FIn, GIn, HIn, IIn, JIn, KIn, LIn, DRejected | DThrown>>,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+};
+// @generated-end fn-overloads-5-12
+export function fn<
+  H extends (
+    a: any,
+    b: any,
+    c: any,
+    d: any,
+    e: any,
+    f: any,
+    g: any,
+  ) => unknown,
+  DRejected = PromiseRejected,
+  DThrown = UnknownException,
+>(
+  handler: H,
+  options?: FnOptions<DRejected, DThrown>,
+): {
+  (
+    a: Parameters<H>[0],
+    b: Parameters<H>[1],
+    c: Parameters<H>[2],
+    d: Parameters<H>[3],
+    e: Parameters<H>[4],
+    f: Parameters<H>[5],
+    g: Parameters<H>[6],
+  ): FnMaybeRawReturn<Parameters<H>, ReturnType<H>, DRejected | DThrown>;
+  <
+    AIn extends InfectedArg<Parameters<H>[0]>,
+    BIn extends InfectedArg<Parameters<H>[1]>,
+    CIn extends InfectedArg<Parameters<H>[2]>,
+    DIn extends InfectedArg<Parameters<H>[3]>,
+    EIn extends InfectedArg<Parameters<H>[4]>,
+    FIn extends InfectedArg<Parameters<H>[5]>,
+    GIn extends InfectedArg<Parameters<H>[6]>,
+  >(
+    a: AIn,
+    b: BIn,
+    c: CIn,
+    d: DIn,
+    e: EIn,
+    f: FIn,
+    g: GIn,
+  ): FnReturn<
+    Fect<
+      unknown,
+      MergeInputFx7<AIn, BIn, CIn, DIn, EIn, FIn, GIn, DRejected | DThrown>
+    >,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+};
+export function fn<
+  H extends (
+    a: any,
+    b: any,
+    c: any,
+    d: any,
+    e: any,
+    f: any,
+    g: any,
+    h: any,
+  ) => unknown,
+  DRejected = PromiseRejected,
+  DThrown = UnknownException,
+>(
+  handler: H,
+  options?: FnOptions<DRejected, DThrown>,
+): {
+  (
+    a: Parameters<H>[0],
+    b: Parameters<H>[1],
+    c: Parameters<H>[2],
+    d: Parameters<H>[3],
+    e: Parameters<H>[4],
+    f: Parameters<H>[5],
+    g: Parameters<H>[6],
+    h: Parameters<H>[7],
+  ): FnMaybeRawReturn<Parameters<H>, ReturnType<H>, DRejected | DThrown>;
+  <
+    AIn extends InfectedArg<Parameters<H>[0]>,
+    BIn extends InfectedArg<Parameters<H>[1]>,
+    CIn extends InfectedArg<Parameters<H>[2]>,
+    DIn extends InfectedArg<Parameters<H>[3]>,
+    EIn extends InfectedArg<Parameters<H>[4]>,
+    FIn extends InfectedArg<Parameters<H>[5]>,
+    GIn extends InfectedArg<Parameters<H>[6]>,
+    HIn extends InfectedArg<Parameters<H>[7]>,
+  >(
+    a: AIn,
+    b: BIn,
+    c: CIn,
+    d: DIn,
+    e: EIn,
+    f: FIn,
+    g: GIn,
+    h: HIn,
+  ): FnReturn<
+    Fect<
+      unknown,
+      MergeInputFx8<
+        AIn,
+        BIn,
+        CIn,
+        DIn,
+        EIn,
+        FIn,
+        GIn,
+        HIn,
+        DRejected | DThrown
+      >
+    >,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+};
+export function fn<
+  H extends (
+    a: any,
+    b: any,
+    c: any,
+    d: any,
+    e: any,
+    f: any,
+    g: any,
+    h: any,
+    i: any,
+  ) => unknown,
+  DRejected = PromiseRejected,
+  DThrown = UnknownException,
+>(
+  handler: H,
+  options?: FnOptions<DRejected, DThrown>,
+): {
+  (
+    a: Parameters<H>[0],
+    b: Parameters<H>[1],
+    c: Parameters<H>[2],
+    d: Parameters<H>[3],
+    e: Parameters<H>[4],
+    f: Parameters<H>[5],
+    g: Parameters<H>[6],
+    h: Parameters<H>[7],
+    i: Parameters<H>[8],
+  ): FnMaybeRawReturn<Parameters<H>, ReturnType<H>, DRejected | DThrown>;
+  <
+    AIn extends InfectedArg<Parameters<H>[0]>,
+    BIn extends InfectedArg<Parameters<H>[1]>,
+    CIn extends InfectedArg<Parameters<H>[2]>,
+    DIn extends InfectedArg<Parameters<H>[3]>,
+    EIn extends InfectedArg<Parameters<H>[4]>,
+    FIn extends InfectedArg<Parameters<H>[5]>,
+    GIn extends InfectedArg<Parameters<H>[6]>,
+    HIn extends InfectedArg<Parameters<H>[7]>,
+    IIn extends InfectedArg<Parameters<H>[8]>,
+  >(
+    a: AIn,
+    b: BIn,
+    c: CIn,
+    d: DIn,
+    e: EIn,
+    f: FIn,
+    g: GIn,
+    h: HIn,
+    i: IIn,
+  ): FnReturn<
+    Fect<
+      unknown,
+      MergeInputFx9<
+        AIn,
+        BIn,
+        CIn,
+        DIn,
+        EIn,
+        FIn,
+        GIn,
+        HIn,
+        IIn,
+        DRejected | DThrown
+      >
+    >,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+};
+export function fn<
+  H extends (
+    a: any,
+    b: any,
+    c: any,
+    d: any,
+    e: any,
+    f: any,
+    g: any,
+    h: any,
+    i: any,
+    j: any,
+  ) => unknown,
+  DRejected = PromiseRejected,
+  DThrown = UnknownException,
+>(
+  handler: H,
+  options?: FnOptions<DRejected, DThrown>,
+): {
+  (
+    a: Parameters<H>[0],
+    b: Parameters<H>[1],
+    c: Parameters<H>[2],
+    d: Parameters<H>[3],
+    e: Parameters<H>[4],
+    f: Parameters<H>[5],
+    g: Parameters<H>[6],
+    h: Parameters<H>[7],
+    i: Parameters<H>[8],
+    j: Parameters<H>[9],
+  ): FnMaybeRawReturn<Parameters<H>, ReturnType<H>, DRejected | DThrown>;
+  <
+    AIn extends InfectedArg<Parameters<H>[0]>,
+    BIn extends InfectedArg<Parameters<H>[1]>,
+    CIn extends InfectedArg<Parameters<H>[2]>,
+    DIn extends InfectedArg<Parameters<H>[3]>,
+    EIn extends InfectedArg<Parameters<H>[4]>,
+    FIn extends InfectedArg<Parameters<H>[5]>,
+    GIn extends InfectedArg<Parameters<H>[6]>,
+    HIn extends InfectedArg<Parameters<H>[7]>,
+    IIn extends InfectedArg<Parameters<H>[8]>,
+    JIn extends InfectedArg<Parameters<H>[9]>,
+  >(
+    a: AIn,
+    b: BIn,
+    c: CIn,
+    d: DIn,
+    e: EIn,
+    f: FIn,
+    g: GIn,
+    h: HIn,
+    i: IIn,
+    j: JIn,
+  ): FnReturn<
+    Fect<
+      unknown,
+      MergeInputFx10<
+        AIn,
+        BIn,
+        CIn,
+        DIn,
+        EIn,
+        FIn,
+        GIn,
+        HIn,
+        IIn,
+        JIn,
+        DRejected | DThrown
+      >
+    >,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+};
+export function fn<
+  H extends (
+    a: any,
+    b: any,
+    c: any,
+    d: any,
+    e: any,
+    f: any,
+    g: any,
+    h: any,
+    i: any,
+    j: any,
+    k: any,
+  ) => unknown,
+  DRejected = PromiseRejected,
+  DThrown = UnknownException,
+>(
+  handler: H,
+  options?: FnOptions<DRejected, DThrown>,
+): {
+  (
+    a: Parameters<H>[0],
+    b: Parameters<H>[1],
+    c: Parameters<H>[2],
+    d: Parameters<H>[3],
+    e: Parameters<H>[4],
+    f: Parameters<H>[5],
+    g: Parameters<H>[6],
+    h: Parameters<H>[7],
+    i: Parameters<H>[8],
+    j: Parameters<H>[9],
+    k: Parameters<H>[10],
+  ): FnMaybeRawReturn<Parameters<H>, ReturnType<H>, DRejected | DThrown>;
+  <
+    AIn extends InfectedArg<Parameters<H>[0]>,
+    BIn extends InfectedArg<Parameters<H>[1]>,
+    CIn extends InfectedArg<Parameters<H>[2]>,
+    DIn extends InfectedArg<Parameters<H>[3]>,
+    EIn extends InfectedArg<Parameters<H>[4]>,
+    FIn extends InfectedArg<Parameters<H>[5]>,
+    GIn extends InfectedArg<Parameters<H>[6]>,
+    HIn extends InfectedArg<Parameters<H>[7]>,
+    IIn extends InfectedArg<Parameters<H>[8]>,
+    JIn extends InfectedArg<Parameters<H>[9]>,
+    KIn extends InfectedArg<Parameters<H>[10]>,
+  >(
+    a: AIn,
+    b: BIn,
+    c: CIn,
+    d: DIn,
+    e: EIn,
+    f: FIn,
+    g: GIn,
+    h: HIn,
+    i: IIn,
+    j: JIn,
+    k: KIn,
+  ): FnReturn<
+    Fect<
+      unknown,
+      MergeInputFx11<
+        AIn,
+        BIn,
+        CIn,
+        DIn,
+        EIn,
+        FIn,
+        GIn,
+        HIn,
+        IIn,
+        JIn,
+        KIn,
+        DRejected | DThrown
+      >
+    >,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+};
+export function fn<
+  H extends (
+    a: any,
+    b: any,
+    c: any,
+    d: any,
+    e: any,
+    f: any,
+    g: any,
+    h: any,
+    i: any,
+    j: any,
+    k: any,
+    l: any,
+  ) => unknown,
+  DRejected = PromiseRejected,
+  DThrown = UnknownException,
+>(
+  handler: H,
+  options?: FnOptions<DRejected, DThrown>,
+): {
+  (
+    a: Parameters<H>[0],
+    b: Parameters<H>[1],
+    c: Parameters<H>[2],
+    d: Parameters<H>[3],
+    e: Parameters<H>[4],
+    f: Parameters<H>[5],
+    g: Parameters<H>[6],
+    h: Parameters<H>[7],
+    i: Parameters<H>[8],
+    j: Parameters<H>[9],
+    k: Parameters<H>[10],
+    l: Parameters<H>[11],
+  ): FnMaybeRawReturn<Parameters<H>, ReturnType<H>, DRejected | DThrown>;
+  <
+    AIn extends InfectedArg<Parameters<H>[0]>,
+    BIn extends InfectedArg<Parameters<H>[1]>,
+    CIn extends InfectedArg<Parameters<H>[2]>,
+    DIn extends InfectedArg<Parameters<H>[3]>,
+    EIn extends InfectedArg<Parameters<H>[4]>,
+    FIn extends InfectedArg<Parameters<H>[5]>,
+    GIn extends InfectedArg<Parameters<H>[6]>,
+    HIn extends InfectedArg<Parameters<H>[7]>,
+    IIn extends InfectedArg<Parameters<H>[8]>,
+    JIn extends InfectedArg<Parameters<H>[9]>,
+    KIn extends InfectedArg<Parameters<H>[10]>,
+    LIn extends InfectedArg<Parameters<H>[11]>,
+  >(
+    a: AIn,
+    b: BIn,
+    c: CIn,
+    d: DIn,
+    e: EIn,
+    f: FIn,
+    g: GIn,
+    h: HIn,
+    i: IIn,
+    j: JIn,
+    k: KIn,
+    l: LIn,
+  ): FnReturn<
+    Fect<
+      unknown,
+      MergeInputFx12<
+        AIn,
+        BIn,
+        CIn,
+        DIn,
+        EIn,
+        FIn,
+        GIn,
+        HIn,
+        IIn,
+        JIn,
+        KIn,
+        LIn,
+        DRejected | DThrown
+      >
+    >,
+    ReturnType<H>,
+    DRejected | DThrown
+  >;
+};
+export function fn<
+  H extends (
+    a: any,
+    b: any,
+    c: any,
+    d: any,
+    e: any,
+    f: any,
+    g: any,
+    h: any,
+    i: any,
+    j: any,
+    k: any,
+    l: any,
+    ...rest: any[]
+  ) => unknown,
   DRejected = PromiseRejected,
   DThrown = UnknownException,
 >(

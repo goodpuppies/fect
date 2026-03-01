@@ -111,4 +111,50 @@ if (false) {
       D: () => 0,
     },
   });
+
+  const sum12 = fn((
+    a: number,
+    b: number,
+    c: number,
+    d: number,
+    e: number,
+    f: number,
+    g: number,
+    h: number,
+    i: number,
+    j: number,
+    k: number,
+    l: number,
+  ) => a + b + c + d + e + f + g + h + i + j + k + l);
+
+  const out12 = sum12(
+    Fect.ok(1),
+    2,
+    Promise.resolve(3),
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+  );
+
+  match(out12).with({
+    ok: (v) => v,
+    err: {
+      PromiseRejected: () => 0,
+      UnknownException: () => 0,
+    },
+  });
+
+  match(out12).with({
+    ok: (v) => v,
+    // @ts-expect-error UnknownException branch must be required
+    err: {
+      PromiseRejected: () => 0,
+    },
+  });
 }

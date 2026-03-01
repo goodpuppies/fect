@@ -45,6 +45,69 @@ Deno.test("fn supports multiple infected args", () => {
   assertEquals(value, 3);
 });
 
+Deno.test("fn supports 12-arg infected typing and composition", async () => {
+  const sum12 = fn((
+    a: number,
+    b: number,
+    c: number,
+    d: number,
+    e: number,
+    f: number,
+    g: number,
+    h: number,
+    i: number,
+    j: number,
+    k: number,
+    l: number,
+  ) => a + b + c + d + e + f + g + h + i + j + k + l);
+
+  const out = sum12(
+    ok(1),
+    2,
+    Promise.resolve(3),
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+  );
+
+  const value = await match(out).with({
+    ok: (v) => v,
+    err: {
+      PromiseRejected: () => -1,
+      UnknownException: () => -1,
+    },
+  });
+
+  assertEquals(value, 78);
+});
+
+Deno.test("fn supports arity above typed overload cap at runtime", () => {
+  const sum13 = fn((
+    a: number,
+    b: number,
+    c: number,
+    d: number,
+    e: number,
+    f: number,
+    g: number,
+    h: number,
+    i: number,
+    j: number,
+    k: number,
+    l: number,
+    m: number,
+  ) => a + b + c + d + e + f + g + h + i + j + k + l + m);
+
+  const out = sum13(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+  assertEquals(out, 13);
+});
+
 Deno.test("Fect.lazy defers execution until match boundary", () => {
   let runs = 0;
   const source = Fect.lazy(() => {

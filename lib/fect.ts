@@ -161,6 +161,40 @@ export type MergeInputFx4<A, B, C, DArg, D> = MergeFx<
   MergeInputFx3<A, B, C, D>,
   InputArgToFx<DArg, D>
 >;
+// @generated-start merge-input-fx
+export type MergeInputFx5<A, B, C, DArg, E, D> = MergeFx<
+  MergeInputFx4<A, B, C, DArg, D>,
+  InputArgToFx<E, D>
+>;
+export type MergeInputFx6<A, B, C, DArg, E, F, D> = MergeFx<
+  MergeInputFx5<A, B, C, DArg, E, D>,
+  InputArgToFx<F, D>
+>;
+export type MergeInputFx7<A, B, C, DArg, E, F, G, D> = MergeFx<
+  MergeInputFx6<A, B, C, DArg, E, F, D>,
+  InputArgToFx<G, D>
+>;
+export type MergeInputFx8<A, B, C, DArg, E, F, G, H, D> = MergeFx<
+  MergeInputFx7<A, B, C, DArg, E, F, G, D>,
+  InputArgToFx<H, D>
+>;
+export type MergeInputFx9<A, B, C, DArg, E, F, G, H, I, D> = MergeFx<
+  MergeInputFx8<A, B, C, DArg, E, F, G, H, D>,
+  InputArgToFx<I, D>
+>;
+export type MergeInputFx10<A, B, C, DArg, E, F, G, H, I, J, D> = MergeFx<
+  MergeInputFx9<A, B, C, DArg, E, F, G, H, I, D>,
+  InputArgToFx<J, D>
+>;
+export type MergeInputFx11<A, B, C, DArg, E, F, G, H, I, J, K, D> = MergeFx<
+  MergeInputFx10<A, B, C, DArg, E, F, G, H, I, J, D>,
+  InputArgToFx<K, D>
+>;
+export type MergeInputFx12<A, B, C, DArg, E, F, G, H, I, J, K, L, D> = MergeFx<
+  MergeInputFx11<A, B, C, DArg, E, F, G, H, I, J, K, D>,
+  InputArgToFx<L, D>
+>;
+// @generated-end merge-input-fx
 
 // ===== Runtime helpers =====
 
