@@ -15,11 +15,15 @@ interface User {
   name?: string;
 }
 
-const fetchUser = Fect.fn(async (name: string) => {
-  return {
-    login: name,
-    name: name.toUpperCase(),
-  } as User;
+const fetchUser = Fect.fn((name: string): Promise<User> => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({
+        login: name,
+        name: name.toUpperCase(),
+      });
+    }, 1);
+  });
 });
 
 const getDisplayName = Fect.fn((user: User) => user.name ?? user.login);
